@@ -53,11 +53,36 @@ const shtoAnalizen = asyncHandler(async (req, res) => {
 
 const perditesAnalizen = asyncHandler(async (req, res) => {
   const vjeter = await Analiza.findById(req.params.id).lean();
-  const a = await Analiza.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+
+  // Krahaso çmimet — normalize si numra për krahasim të saktë
+  const pVj = Number(vjeter?.cmime?.pacient     ?? 0);
+  const bVj = Number(vjeter?.cmime?.bashkpuntor ?? 0);
+  const pRe = Number(req.body.cmime?.pacient     ?? 0);
+  const bRe = Number(req.body.cmime?.bashkpuntor ?? 0);
+  const cmimNdryshoi = vjeter && req.body.cmime !== undefined && (pVj !== pRe || bVj !== bRe);
+
+  // Step 1 — ruaj historikun para update-it kryesor (operacion i veçuar)
+  if (cmimNdryshoi) {
+    await Analiza.findByIdAndUpdate(req.params.id, {
+      $push: {
+        historikuCmimeve: {
+          cmimeVjeter:  { pacient: pVj, bashkpuntor: bVj },
+          cmimeRe:      { pacient: pRe, bashkpuntor: bRe },
+          ndryshuarNe:  new Date(),
+          ndryshuarNga: req.perdoruesi
+            ? `${req.perdoruesi.emri || ''} ${req.perdoruesi.mbiemri || ''}`.trim()
+            : 'Sistemi',
+        },
+      },
+    });
+  }
+
+  // Step 2 — update-o fushat e analizës
+  const { historikuCmimeve: _h, ...bodyPaHistorik } = req.body;
+  const a = await Analiza.findByIdAndUpdate(req.params.id, bodyPaHistorik, { new: true, runValidators: false });
   if (!a) { res.status(404); throw new Error('Analiza nuk u gjet'); }
 
   // Kontrollo ndryshim çmimi — log shtesë
-  const cmimNdryshoi = vjeter && JSON.stringify(vjeter.cmime) !== JSON.stringify(a.cmime);
   logVeprimin(req, cmimNdryshoi ? 'EDIT_ANALIZA_PRICE' : 'EDIT_ANALIZA', {
     kategorija:     'Laborator',
     moduliDetajuar: 'Analiza',
@@ -668,9 +693,17 @@ const gjeneroRaportPDF = asyncHandler(async (req, res) => {
     headerTekst:      s.headerTekst      || '',
     footer:           s.footer           || '',
     referuesiDefault: s.referuesiDefault || 'Vete ardhur',
+    qrBaseUrl:        s.qrBaseUrl        || '',
+    qrKodAktiv:       s.qrKodAktiv       ?? true,
     nenshkrimet,
   };
 
+  // Nese tokenPublik mungon (porosi e vjeter), gjenero dhe ruaj
+  if (!porosi.tokenPublik) {
+    const tok = require('crypto').randomBytes(20).toString('hex');
+    await PorosiLab.findByIdAndUpdate(porosi._id, { tokenPublik: tok });
+    porosi.tokenPublik = tok;
+  }
   const pdfBuffer = await gjeneroPDF(porosi, settings);
 
   const pac = porosi.pacienti || {};

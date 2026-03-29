@@ -328,6 +328,21 @@ export default function ProfiliPacientit() {
         </div>
       </div>
 
+      {/* Shënim i Shpejtë */}
+      {p.shenimeExtra && (
+        <div className="card border-amber-200 bg-amber-50 py-4">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span className="text-amber-600 text-base">🗒️</span>
+            </div>
+            <div>
+              <h4 className="font-semibold text-amber-800 text-sm mb-1">Shënim</h4>
+              <p className="text-sm text-amber-900 whitespace-pre-wrap">{p.shenimeExtra}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Barnat aktuale */}
       {p.barnatAktuale?.length > 0 && (
         <div className="card">

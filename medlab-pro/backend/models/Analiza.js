@@ -54,6 +54,12 @@ const skemaAnaliza = new Schema({
     }],
   }],
   numrRendorNeProfil: { type: Number, default: 0 }, // renditja brenda profilit (per PDF)
+  historikuCmimeve: [{
+    cmimeVjeter: { pacient: Number, bashkpuntor: Number },
+    cmimeRe:     { pacient: Number, bashkpuntor: Number },
+    ndryshuarNe:  { type: Date, default: Date.now },
+    ndryshuarNga: String,
+  }],
   aktiv: { type: Boolean, default: true },
   shenime: String,
   komentet: [{ type: String, maxlength: 2500 }], // komente te paracaktuara (shfaqen si sugjerime ne rezultate)

@@ -149,8 +149,8 @@ export default function RegjistroProfilet() {
     const b = analizat[targetIdx];
     try {
       await Promise.all([
-        api.put(`/laborator/analizat/${a._id}`, { numrRendorNeProfil: targetIdx }),
-        api.put(`/laborator/analizat/${b._id}`, { numrRendorNeProfil: anIdx }),
+        api.put(`/laborator/analizat/${a._id}`, { numrRendorNeProfil: b.numrRendorNeProfil ?? targetIdx }),
+        api.put(`/laborator/analizat/${b._id}`, { numrRendorNeProfil: a.numrRendorNeProfil ?? anIdx }),
       ]);
       await ngarko(profiliDetaje._id);
     } catch {

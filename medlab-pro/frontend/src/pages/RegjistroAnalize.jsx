@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
-import { Plus, Edit2, Trash2, X, Save, FlaskConical, Search, MessageSquare, Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, FlaskConical, Search, MessageSquare, Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, History, Clock } from 'lucide-react';
 import RichTextEditor from '../components/ui/RichTextEditor';
 import toast from 'react-hot-toast';
 
@@ -39,6 +39,8 @@ export default function RegjistroAnalize() {
   const [profilet, setProfilet]        = useState([]);
   const [kerko, setKerko]              = useState('');
   const [faqja, setFaqja]              = useState(1);
+
+  const [modalHistoriku, setModalHistoriku] = useState(null); // analiza object
 
   // Import Excel state
   const [modalImport, setModalImport]  = useState(false);
@@ -330,6 +332,12 @@ export default function RegjistroAnalize() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1">
+                      <button
+                        onClick={() => setModalHistoriku(a)}
+                        title="Historiku i çmimeve"
+                        className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:text-purple-600 hover:border-purple-300 hover:bg-purple-50 transition-colors">
+                        <History size={13}/>
+                      </button>
                       <button onClick={() => hapModal(a)}
                         className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-500 transition-colors">
                         <Edit2 size={14}/>
@@ -766,6 +774,102 @@ export default function RegjistroAnalize() {
           </div>
         </div>
       )}
+
+      {/* Modal: Historiku i Çmimeve */}
+      {modalHistoriku && (() => {
+        const fmtDt = iso => {
+          if (!iso) return '—';
+          const d = new Date(iso);
+          const data = d.toLocaleDateString('sq-AL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          const ora  = d.toLocaleTimeString('sq-AL', { hour: '2-digit', minute: '2-digit', hour12: false });
+          return `${data} / ora ${ora}`;
+        };
+        const hist = [...(modalHistoriku.historikuCmimeve || [])].reverse();
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
+              <div className="flex items-center justify-between px-5 py-4 border-b">
+                <div>
+                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                    <Clock size={16} className="text-purple-500"/> Historiku i Çmimeve
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-0.5">{modalHistoriku.emri} · {modalHistoriku.kodi}</p>
+                </div>
+                <button onClick={() => setModalHistoriku(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">✕</button>
+              </div>
+
+              <div className="p-5 space-y-3 max-h-[70vh] overflow-y-auto">
+                {/* Çmimi aktual */}
+                <div className="p-3 rounded-xl bg-green-50 border border-green-200">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs text-green-600 font-semibold uppercase tracking-wide">Çmimi Aktual</p>
+                    <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full font-medium">Tani</span>
+                  </div>
+                  <div className="flex gap-4 text-sm font-bold text-green-800">
+                    <span>Pacient: €{modalHistoriku.cmime?.pacient ?? 0}</span>
+                    {(modalHistoriku.cmime?.bashkpuntor ?? 0) > 0 &&
+                      <span>Bashkëpuntor: €{modalHistoriku.cmime.bashkpuntor}</span>}
+                  </div>
+                </div>
+
+                {/* Historiku i ndryshimeve */}
+                {hist.length === 0 ? (
+                  <div className="text-center py-10 text-gray-400">
+                    <Clock size={36} className="mx-auto mb-2 opacity-20"/>
+                    <p className="text-sm">Nuk ka ndryshime çmimi të regjistruara</p>
+                  </div>
+                ) : hist.map((h, i) => {
+                  const pVj = h.cmimeVjeter?.pacient ?? h.cmime?.pacient ?? 0;
+                  const pRe = h.cmimeRe?.pacient ?? 0;
+                  const bVj = h.cmimeVjeter?.bashkpuntor ?? h.cmime?.bashkpuntor ?? 0;
+                  const bRe = h.cmimeRe?.bashkpuntor ?? 0;
+                  const pNdryshoi = pVj !== pRe;
+                  const bNdryshoi = bVj !== bRe;
+                  return (
+                    <div key={i} className="p-3 rounded-xl border border-gray-200 bg-gray-50 space-y-2">
+                      {/* Koka: data + perdoruesi + nr */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-semibold text-gray-700">{fmtDt(h.ndryshuarNe)}</p>
+                          {h.ndryshuarNga && <p className="text-xs text-gray-400">nga {h.ndryshuarNga}</p>}
+                        </div>
+                        <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">#{hist.length - i}</span>
+                      </div>
+                      {/* Detajet e ndryshimit */}
+                      <div className="space-y-1">
+                        {pNdryshoi && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-xs text-gray-500 w-24 flex-shrink-0">Pacient:</span>
+                            <span className="font-medium text-red-600">€{pVj}</span>
+                            <span className="text-gray-400">→</span>
+                            <span className="font-bold text-green-600">€{pRe}</span>
+                          </div>
+                        )}
+                        {bNdryshoi && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-xs text-gray-500 w-24 flex-shrink-0">Bashkëpuntor:</span>
+                            <span className="font-medium text-red-600">€{bVj}</span>
+                            <span className="text-gray-400">→</span>
+                            <span className="font-bold text-green-600">€{bRe}</span>
+                          </div>
+                        )}
+                        {!pNdryshoi && !bNdryshoi && (
+                          <p className="text-xs text-gray-400 italic">Ndryshim tjetër (jo çmimi)</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="px-5 py-3 border-t flex items-center justify-between">
+                <p className="text-xs text-gray-400">{hist.length} ndryshim{hist.length !== 1 ? 'e' : ''} gjithsej</p>
+                <button onClick={() => setModalHistoriku(null)} className="btn-ghost text-sm">Mbyll</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

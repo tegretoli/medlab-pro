@@ -354,14 +354,14 @@ function vizatoTabelenKoka(doc, x, W, cols) {
 
 // ─── Funksioni kryesor ───────────────────────────────────────────────────────
 async function gjeneroRaportPDF(porosi, settings = {}) {
-  // ── Pre-process QR code (async, must be outside Promise) ────────────────
+  // ── Pre-process QR code — shfaqet kur tokenPublik ekziston dhe baseUrl është vendosur ──
   let _qrBuf = null;
-  if (settings.qrKodAktiv && porosi.tokenPublik) {
+  const _qrBaseUrl = (settings.qrBaseUrl || '').replace(/\/$/, '');
+  if (porosi.tokenPublik && _qrBaseUrl) {
     try {
       const QRCode = require('qrcode');
-      const baseUrl = (settings.qrBaseUrl || '').replace(/\/$/, '');
-      const qrUrl   = `${baseUrl}/r/${porosi.tokenPublik}`;
-      _qrBuf = await QRCode.toBuffer(qrUrl, { type: 'png', width: 72, margin: 1 });
+      const qrUrl  = `${_qrBaseUrl}/r/${porosi.tokenPublik}`;
+      _qrBuf = await QRCode.toBuffer(qrUrl, { type: 'png', width: 80, margin: 1 });
     } catch (_) {}
   }
 
@@ -436,7 +436,7 @@ async function gjeneroRaportPDF(porosi, settings = {}) {
     // ── Page layout ─────────────────────────────────────────────
     const nenshkrimet  = settings.nenshkrimet || [];
     const hasPhotos    = nenshkrimet.some(n => n.foto);
-    const SIG_AREA_H   = nenshkrimet.length > 0 ? (hasPhotos ? 136 : 65) : 30;
+    const SIG_AREA_H   = nenshkrimet.length > 0 ? (hasPhotos ? 95 : 52) : 30;
     const SIG_Y  = PH - SIG_AREA_H - 38;
     const FOOT_Y = PH - 30;
     const CBW    = SIG_Y - 8;  // kufiri i poshtem i permbajtjes
@@ -488,8 +488,8 @@ async function gjeneroRaportPDF(porosi, settings = {}) {
             try {
               const b64     = sig.foto.replace(/^data:[^;]+;base64,/, '');
               const fotoBuf = Buffer.from(b64, 'base64');
-              const fW      = Math.min(sW - 4, 120);
-              const fH      = 70;
+              const fW      = Math.min(sW - 4, 90);
+              const fH      = 45;
               const imgX    = sig.align === 'right' ? sX + sW - fW : sX;
               doc.image(fotoBuf, imgX, nextRowY, { fit: [fW, fH], align: txtAlign, valign: 'top' });
               nextRowY += fH + 2;

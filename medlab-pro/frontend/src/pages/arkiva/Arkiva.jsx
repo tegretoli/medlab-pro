@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import api from '../../services/api';
-import { Search, ChevronDown, ChevronUp, Calendar, FlaskConical, Eye } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { Search, ChevronDown, ChevronUp, Calendar, FlaskConical, Eye, FileText, Loader } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const depNgjyra = {
@@ -23,7 +24,26 @@ export default function Arkiva() {
   const [historiku, setHistoriku]   = useState(null);
   const [ngarkimi, setNgarkimi]     = useState(false);
   const [teZgjeruara, setTeZgjeruara] = useState({});
+  const [pdfDuke, setPdfDuke]       = useState(null); // porosiId qe po gjenerohet
   const timerRef = useRef(null);
+
+  const hapPDF = async (porosiId, numrPorosi) => {
+    setPdfDuke(porosiId);
+    const win = window.open('', '_blank');
+    try {
+      const resp = await api.get(`/laborator/porosi/${porosiId}/pdf`, { responseType: 'blob' });
+      const blob = new Blob([resp.data], { type: 'application/pdf' });
+      const url  = window.URL.createObjectURL(blob) + '#' + encodeURIComponent(`${numrPorosi}.pdf`);
+      if (win) {
+        win.location.href = url;
+        setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+      }
+    } catch {
+      if (win) win.close();
+      toast.error('Gabim gjatë hapjes së PDF');
+    }
+    setPdfDuke(null);
+  };
 
   const kerkoPacientin = (v) => {
     setKerko(v);
@@ -154,12 +174,24 @@ export default function Arkiva() {
                               <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">Bashkpuntor</span>
                             )}
                           </div>
-                          <button
-                            onClick={() => navigate(`/laboratori/rezultate/${p._id}`)}
-                            className="flex items-center gap-1 text-xs text-primary hover:underline"
-                          >
-                            <Eye size={13}/> Shiko detajet
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => hapPDF(p._id, p.numrPorosi)}
+                              disabled={pdfDuke === p._id}
+                              className="flex items-center gap-1 text-xs text-gray-400 hover:text-green-600 hover:underline disabled:opacity-50"
+                            >
+                              {pdfDuke === p._id
+                                ? <Loader size={12} className="animate-spin"/>
+                                : <FileText size={13}/>
+                              } PDF
+                            </button>
+                            <button
+                              onClick={() => navigate(`/laboratori/rezultate/${p._id}`)}
+                              className="flex items-center gap-1 text-xs text-primary hover:underline"
+                            >
+                              <Eye size={13}/> Detajet
+                            </button>
+                          </div>
                         </div>
 
                         {/* Analizat me rezultate */}
@@ -186,8 +218,8 @@ export default function Arkiva() {
                         </div>
 
                         <div className="mt-2 flex items-center gap-3 text-xs text-gray-400">
-                          <span>? {p.cmimi?.toLocaleString()} EUR</span>
-                          <span>? {new Date(p.dataPorosis).toLocaleTimeString('sq-AL', { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span>{p.cmimi?.toLocaleString()} EUR</span>
+                          <span>{new Date(p.dataPorosis).toLocaleTimeString('sq-AL', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
                     ))}

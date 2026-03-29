@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import {
   Search, X, ChevronLeft, AlertCircle, FlaskConical,
   Layers, UserCheck, CheckCircle, Printer, ChevronDown, ChevronUp,
-  Package, Tag, TrendingDown,
+  Package, Tag, TrendingDown, Users,
 } from 'lucide-react';
 
 const DEPARTAMENTET = ['Biokimi', 'Mikrobiologji', 'PCR'];
@@ -231,9 +231,9 @@ export default function KrijoPorosine() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-        {/* ?? Left: Patient + Options ?? */}
+        {/* Left: Patient + Options */}
         <div className="card space-y-4">
-          <h3 className="font-semibold text-gray-700">? Pacienti</h3>
+          <h3 className="font-semibold text-gray-700 flex items-center gap-2"><Users size={16} className="text-primary"/> Pacienti</h3>
 
           {pacienti ? (
             <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex items-center gap-3">
@@ -276,7 +276,7 @@ export default function KrijoPorosine() {
           <div>
             <label className="label">Tipi Pacientit</label>
             <div className="grid grid-cols-2 gap-2">
-              {[['pacient','? Pacient'],['bashkpuntor','? Bashkpuntor']].map(([v, l]) => (
+              {[['pacient','Pacient'],['bashkpuntor','Bashkpuntor']].map(([v, l]) => (
                 <button key={v} onClick={() => setTipi(v)}
                   className={`py-2 rounded-xl border-2 text-sm font-medium transition-all ${tipi === v ? 'border-primary bg-primary/5 text-primary' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
                   {l}
@@ -469,7 +469,7 @@ export default function KrijoPorosine() {
                               <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${
                                 zgjedhur ? 'border-primary bg-primary' : 'border-gray-300'
                               }`}>
-                                {zgjedhur && <span className="text-white text-xs leading-none">?</span>}
+                                {zgjedhur && <span className="text-white text-xs leading-none">✓</span>}
                               </div>
                               <span className="flex-1 text-sm text-gray-700">{a.emri}</span>
                               {cmimi != null && (
@@ -522,7 +522,7 @@ export default function KrijoPorosine() {
                       <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${
                         zgjedhur ? 'border-primary bg-primary' : 'border-gray-300'
                       }`}>
-                        {zgjedhur && <span className="text-white text-xs">?</span>}
+                        {zgjedhur && <span className="text-white text-xs">✓</span>}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-800 truncate">{a.emri}</p>
@@ -762,7 +762,7 @@ export default function KrijoPorosine() {
               onClick={dergo}
               disabled={duke_ruajtur || !pacienti || !selektuara.length}
               className="btn-primary px-8 text-base disabled:opacity-50">
-              {duke_ruajtur ? 'Duke krijuar...' : '? Krijo Porosine'}
+              {duke_ruajtur ? 'Duke krijuar...' : 'Krijo Porosine'}
             </button>
           </div>
         </div>

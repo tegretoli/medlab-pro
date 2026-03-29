@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { merrPacientet, fshiPacientin } from '../../store/slices/pacientetSlice';
 import toast from 'react-hot-toast';
-import { Search, Plus, User, Phone, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, User, Phone, Trash2, ChevronLeft, ChevronRight, StickyNote, MessageSquarePlus } from 'lucide-react';
 import api from '../../services/api';
 
 const gjiniaEmri = { M: 'Mashkull', F: 'Femer' };
@@ -15,6 +15,9 @@ export default function ListaPacienteve() {
   const [faqe, setFaqe] = useState(1);
   const [borxhetMap, setBorxhetMap] = useState({});
   const LIMIT = 20;
+  const [modalShenimi, setModalShenimi] = useState(null); // { id, emri, shenime }
+  const [tekstShenimi, setTekstiShenimi] = useState('');
+  const [dukeShenon, setDukeShenon] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -36,6 +39,21 @@ export default function ListaPacienteve() {
     const result = await dispatch(fshiPacientin(id));
     if (fshiPacientin.fulfilled.match(result)) toast.success('Pacienti u fshi');
     else toast.error(result.payload || 'Gabim gjate fshirjes');
+  };
+
+  const ruajShenimin = async () => {
+    if (!modalShenimi) return;
+    setDukeShenon(true);
+    try {
+      await api.put(`/pacientet/${modalShenimi.id}`, { shenimeExtra: tekstShenimi });
+      toast.success('Shënimi u ruajt!');
+      setModalShenimi(null);
+      dispatch(merrPacientet({ kerkese: kerko || undefined, faqe, limit: LIMIT }));
+    } catch {
+      toast.error('Gabim duke ruajtur shënimin');
+    } finally {
+      setDukeShenon(false);
+    }
   };
 
   return (
@@ -88,7 +106,12 @@ export default function ListaPacienteve() {
                       </div>
                       <div>
                         <p className="font-medium text-gray-800">{p.emri} {p.mbiemri}</p>
-                        <p className="text-xs text-gray-400">{p.email || '—'}</p>
+                        {p.shenimeExtra
+                          ? <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5 max-w-[200px] truncate">
+                              <StickyNote size={10}/> {p.shenimeExtra}
+                            </p>
+                          : <p className="text-xs text-gray-400">{p.email || '—'}</p>
+                        }
                       </div>
                     </div>
                   </td>
@@ -120,6 +143,12 @@ export default function ListaPacienteve() {
                       <Link to={`/pacientet/${p._id}`} className="text-primary text-xs font-medium hover:underline">
                         Shiko →
                       </Link>
+                      <button
+                        onClick={() => { setModalShenimi({ id: p._id, emri: `${p.emri} ${p.mbiemri}`, shenime: p.shenimeExtra || '' }); setTekstiShenimi(p.shenimeExtra || ''); }}
+                        className={`p-1 rounded transition-colors ${p.shenimeExtra ? 'text-amber-500 hover:bg-amber-50' : 'text-gray-300 hover:text-amber-400 hover:bg-amber-50'}`}
+                        title={p.shenimeExtra ? 'Shënim ekziston — kliko për të ndryshuar' : 'Shto shënim të shpejtë'}>
+                        <StickyNote size={14} />
+                      </button>
                       <button onClick={() => fshi(p._id, `${p.emri} ${p.mbiemri}`)}
                         className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
                         title="Fshi pacientin">
@@ -151,6 +180,46 @@ export default function ListaPacienteve() {
           </div>
         )}
       </div>
+
+      {/* Modal: Shënim i Shpejtë */}
+      {modalShenimi && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <div>
+                <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                  <StickyNote size={16} className="text-amber-500"/> Shënim i Shpejtë
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">{modalShenimi.emri}</p>
+              </div>
+              <button onClick={() => setModalShenimi(null)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">✕</button>
+            </div>
+            <div className="p-5">
+              <textarea
+                value={tekstShenimi}
+                onChange={e => setTekstiShenimi(e.target.value)}
+                rows={4}
+                placeholder="Shkruaj shënim për këtë pacient..."
+                className="input resize-none"
+                autoFocus
+              />
+              <div className="flex gap-2 mt-3 justify-end">
+                <button onClick={() => setModalShenimi(null)} className="btn-ghost text-sm">Anulo</button>
+                {tekstShenimi !== modalShenimi.shenime && tekstShenimi === '' && (
+                  <button onClick={ruajShenimin} disabled={dukeShenon}
+                    className="text-sm px-3 py-1.5 rounded-lg border border-red-300 text-red-600 hover:bg-red-50">
+                    Fshi Shënimin
+                  </button>
+                )}
+                <button onClick={ruajShenimin} disabled={dukeShenon}
+                  className="btn-primary text-sm px-4">
+                  {dukeShenon ? 'Duke ruajtur...' : 'Ruaj'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
