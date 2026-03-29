@@ -5,10 +5,19 @@ import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Users, FlaskConical, Calendar, CreditCard,
   Archive, TrendingUp, Settings, LogOut, Menu, ChevronDown, UserCheck, Layers, Microscope, Package, TestTube2,
-  BarChart2, ShieldAlert, BellRing,
+  BarChart2, ShieldAlert, BellRing, Moon, Sun,
 } from 'lucide-react';
 import api from '../../services/api';
 import { QASJA_DEFAULT } from '../../pages/settings/Settings';
+
+function useDarkMode() {
+  const [dark, setDark] = useState(() => localStorage.getItem('darkMode') === 'true');
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark);
+    localStorage.setItem('darkMode', dark);
+  }, [dark]);
+  return [dark, setDark];
+}
 
 const NAV_RAW = [
   { path: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard, moduliId: 'dashboard' },
@@ -42,6 +51,7 @@ export default function Layout() {
   const [sidHapur, setSidHapur] = useState(false);
   const [zgj, setZgj]           = useState({ Laboratori: false });
   const [alarmCount, setAlarmCount] = useState(0);
+  const [dark, setDark] = useDarkMode();
 
   useEffect(() => {
     const fetch = () => api.get('/alarmet/count').then(r => setAlarmCount(r.data.total || 0)).catch(() => {});
@@ -63,7 +73,7 @@ export default function Layout() {
   });
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--bg-base)' }}>
       {/* Sidebar — icon-only by default on desktop, expands on hover */}
       <aside className={`
         fixed inset-y-0 left-0 z-50
@@ -159,6 +169,12 @@ export default function Layout() {
           <button onClick={() => setSidHapur(true)} className="lg:hidden text-gray-500"><Menu size={22}/></button>
           <div className="flex-1"/>
           <span className="text-sm text-gray-500 hidden md:block">Dr. <strong>{perdoruesi?.emri} {perdoruesi?.mbiemri}</strong></span>
+          <button
+            onClick={() => setDark(d => !d)}
+            title={dark ? 'Modaliteti i ditës' : 'Modaliteti i natës'}
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-gray-100 text-gray-500 hover:text-gray-700">
+            {dark ? <Sun size={17}/> : <Moon size={17}/>}
+          </button>
         </header>
         <main className="flex-1 overflow-y-auto p-5">
           <Outlet/>
