@@ -9,8 +9,12 @@ const trajtojGabimin = (gabim, req, res, next) => {
   }
   // MongoDB: Duplikat
   if (gabim.code === 11000) {
+    const fushe = Object.keys(gabim.keyValue || {})[0];
+    // numrPersonal nuk është unik — injoro këtë gabim specifik
+    if (fushe === 'numrPersonal') {
+      return res.status(200).json({ sukses: false, mesazh: 'numrPersonal_skip' });
+    }
     statusKod = 400;
-    const fushe = Object.keys(gabim.keyValue)[0];
     mesazh = `Vlera per '${fushe}' egziston tashmë`;
   }
   // Mongoose: Validim

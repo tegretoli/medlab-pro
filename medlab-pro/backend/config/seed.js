@@ -4,21 +4,6 @@ const Referues   = require('../models/Referues');
 
 const seed = async () => {
   try {
-    // ─── Fix numrPersonal index (ensure sparse) ───────────────────────────────
-    try {
-      const col = mongoose.connection.collection('pacientet');
-      const indexes = await col.indexes();
-      const idx = indexes.find(i => i.key && i.key.numrPersonal !== undefined);
-      if (idx && !idx.sparse) {
-        await col.dropIndex(idx.name);
-        await col.createIndex({ numrPersonal: 1 }, { unique: true, sparse: true, background: true });
-        console.log('✅ numrPersonal index rindërtuar si sparse');
-      }
-      // Pastro vlera bosh "" nga numrPersonal
-      await col.updateMany({ numrPersonal: '' }, { $unset: { numrPersonal: '' } });
-    } catch (e) {
-      // index ndoshta nuk ekziston ende — ok
-    }
     // ─── Admin user ───────────────────────────────────────────────────────────
     const exists = await Perdoruesi.findOne({ email: 'arber.shala@exact.com' });
     if (!exists) {

@@ -78,7 +78,11 @@ const merrPacientin = asyncHandler(async (req, res) => {
 // @route  POST /api/pacientet
 const regjistroPatient = asyncHandler(async (req, res) => {
   const data = { ...req.body };
-  if (!data.numrPersonal?.trim()) delete data.numrPersonal;
+  // numrPersonal — opsional si qyteti, asnjë constraint
+  const npVal = (data.numrPersonal || '').trim();
+  if (npVal) data.numrPersonal = npVal;
+  else delete data.numrPersonal;
+
   const pacienti = await Pacienti.create(data);
 
   logVeprimin(req, 'CREATE_PATIENT', {
@@ -99,17 +103,29 @@ const perditesoPacientin = asyncHandler(async (req, res) => {
   // Merr vlerën e vjetër para ndryshimit
   const vjeter = await Pacienti.findById(req.params.id).lean();
 
+  // numrPersonal — opsional, lejohen bosh / "0" / duplikate (si qyteti)
   const { numrPersonal: np, ...setData } = req.body;
   const npTrim = (np || '').trim();
   const updateOp = npTrim
     ? { $set: { ...setData, numrPersonal: npTrim } }
     : { $set: setData, $unset: { numrPersonal: '' } };
 
-  const pacienti = await Pacienti.findByIdAndUpdate(
-    req.params.id,
-    updateOp,
-    { new: true, runValidators: false }
-  );
+  let pacienti;
+  try {
+    pacienti = await Pacienti.findByIdAndUpdate(req.params.id, updateOp, { new: true, runValidators: false });
+  } catch (err) {
+    // Fallback nëse indeksi unik fizik ende ekziston në DB
+    if (err.code === 11000 && err.keyValue?.numrPersonal !== undefined) {
+      const { numrPersonal: _np, ...safeSet } = setData;
+      pacienti = await Pacienti.findByIdAndUpdate(
+        req.params.id,
+        { $set: safeSet, $unset: { numrPersonal: '' } },
+        { new: true, runValidators: false }
+      );
+    } else {
+      throw err;
+    }
+  }
   if (!pacienti) { res.status(404); throw new Error('Pacienti nuk u gjet'); }
 
   // Gjej fushat e ndryshuara

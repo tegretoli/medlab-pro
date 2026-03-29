@@ -3,7 +3,7 @@ const { Schema } = mongoose;
 
 const skemaPacienti = new Schema({
   // ─── Identifikimi ───────────────────────────────────────────────
-  numrPersonal: { type: String, unique: true, sparse: true, trim: true },
+  numrPersonal: { type: String, trim: true },
   emri:         { type: String, required: [true, 'Emri eshte i detyreshem'], trim: true },
   mbiemri:      { type: String, required: [true, 'Mbiemri eshte i detyreshem'], trim: true },
   datelindja:   { type: Date, required: [true, 'Data e lindjes eshte e detyreshme'] },
@@ -79,7 +79,7 @@ const skemaPacienti = new Schema({
   shenimeExtra: String,
   portalAktiv:  { type: Boolean, default: false },
   portalEmail:  String,
-}, { timestamps: true });
+}, { timestamps: true, autoIndex: false });
 
 // ─── Virtuals ───────────────────────────────────────────────────────────────
 skemaPacienti.virtual('emriPlote').get(function () {
