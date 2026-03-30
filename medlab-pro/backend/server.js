@@ -42,8 +42,17 @@ const app = express();
 
 // ─── Security Middleware ─────────────────────────────────────────────────────
 app.use(helmet());
+const allowedOrigins = (
+  process.env.CORS_ORIGINS ||
+  process.env.CLIENT_URL ||
+  'http://localhost:5173,https://emri-frontendit.vercel.app'
+).split(',').map(o => o.trim()).filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
 }));
 
@@ -95,7 +104,7 @@ app.use('/api/zbritjet',     kodZbritjeRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ statusi: 'OK', koha: new Date(), versioni: '1.0.0' });
+  res.status(200).json({ ok: true });
 });
 
 // ─── Error Handler ───────────────────────────────────────────────────────────
