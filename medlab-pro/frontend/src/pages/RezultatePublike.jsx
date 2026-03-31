@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { FlaskConical, AlertCircle, Clock, CheckCircle } from 'lucide-react';
 
+const API_URL = import.meta.env.VITE_API_URL || '/api';
+
 export default function RezultatePublike() {
   const { token } = useParams();
   const [gjendje, setGjendje] = useState('duke_ngarkuar'); // duke_ngarkuar | ok | gabim | jo_gati
@@ -11,7 +13,7 @@ export default function RezultatePublike() {
   useEffect(() => {
     if (!token) { setGjendje('gabim'); setMesazh('Link i pavlefshëm'); return; }
 
-    fetch(`/api/laborator/publik/pdf/${token}`)
+    fetch(`${API_URL}/laborator/publik/pdf/${token}`)
       .then(async res => {
         if (res.ok) {
           const blob = await res.blob();

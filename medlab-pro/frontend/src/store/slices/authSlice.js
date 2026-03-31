@@ -56,10 +56,8 @@ const authSlice = createSlice({
       const token  = sessionStorage.getItem('token');
       const arsyeja = action?.payload?.arsyeja || 'manual';
       if (token) {
-        fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ arsyeja }),
+        api.post('/auth/logout', { arsyeja }, {
+          headers: { Authorization: `Bearer ${token}` },
         }).catch(() => {});
       }
       state.perdoruesi  = null;

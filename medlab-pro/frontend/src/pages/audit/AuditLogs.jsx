@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 
+const API_URL = import.meta.env.VITE_API_URL || '/api';
+
 const KATEGORITE = ['', 'Auth', 'Pacient', 'Laborator', 'Rezultat', 'Financa', 'Settings', 'Perdorues', 'Tjeter'];
 
 const KAT_C = {
@@ -115,7 +117,7 @@ export default function AuditLogs() {
     if (vetemAlarme) params.set('alarmi', 'true');
 
     const token = sessionStorage.getItem('token');
-    const url   = `/api/audit/eksport-${tipi}?${params}`;
+    const url   = `${API_URL}/audit/eksport-${tipi}?${params}`;
     const resp  = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     const blob  = await resp.blob();
     const a     = document.createElement('a');
