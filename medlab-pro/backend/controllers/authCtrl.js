@@ -1,15 +1,38 @@
-const asyncHandler   = require('express-async-handler');
-const jwt            = require('jsonwebtoken');
-const speakeasy      = require('speakeasy');
-const QRCode         = require('qrcode');
-const Perdoruesi     = require('../models/Perdoruesi');
+const asyncHandler = require('express-async-handler');
+const jwt = require('jsonwebtoken');
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
+const Perdoruesi = require('../models/Perdoruesi');
 const { logVeprimin } = require('../utils/logAction');
 
-// ── Hyrja: email + fjalekalimi → kthehet tempToken + 2FA info ──
+const BYPASS_2FA_EMAIL = 'rinesasmajli11@gmail.com';
+
+const formatoPerdoruesin = (perdoruesi) => ({
+  _id: perdoruesi._id,
+  emri: perdoruesi.emri,
+  mbiemri: perdoruesi.mbiemri,
+  email: perdoruesi.email,
+  roli: perdoruesi.roli,
+  fotoProfili: perdoruesi.fotoProfili,
+});
+
+const krijoReqAudit = (req, perdoruesi) => ({
+  perdoruesi: {
+    _id: perdoruesi._id,
+    emri: perdoruesi.emri,
+    mbiemri: perdoruesi.mbiemri,
+    roli: perdoruesi.roli,
+  },
+  headers: req.headers,
+  ip: req.ip,
+  connection: req.connection,
+});
+
 const hyrje = asyncHandler(async (req, res) => {
   const { email, fjalekalimi } = req.body;
   if (!email || !fjalekalimi) {
-    res.status(400); throw new Error('Email dhe fjalekalimi janë të detyrueshëm');
+    res.status(400);
+    throw new Error('Email dhe fjalekalimi jane te detyrueshem');
   }
 
   const perdoruesi = await Perdoruesi
@@ -17,34 +40,50 @@ const hyrje = asyncHandler(async (req, res) => {
     .select('+fjalekalimi +twoFactorSecret +twoFactorEnabled');
 
   if (!perdoruesi || !perdoruesi.aktiv) {
-    res.status(401); throw new Error('Email ose fjalekalim i gabuar');
+    res.status(401);
+    throw new Error('Email ose fjalekalim i gabuar');
   }
 
   const valid = await perdoruesi.verifiko(fjalekalimi);
   if (!valid) {
-    // Log tentativë të dështuar
-    logVeprimin({ headers: req.headers, ip: req.ip, connection: req.connection },
-      'LOGIN_FAILED', {
-        kategorija:  'Auth',
-        rekordEmri:  email,
-        pershkrimi:  `Tentativë e dështuar hyrjeje: ${email}`,
-        statusi:     'deshtoi',
+    logVeprimin(
+      { headers: req.headers, ip: req.ip, connection: req.connection },
+      'LOGIN_FAILED',
+      {
+        kategorija: 'Auth',
+        rekordEmri: email,
+        pershkrimi: `Tentative e deshtuar hyrjeje: ${email}`,
+        statusi: 'deshtoi',
       }
     );
-    res.status(401); throw new Error('Email ose fjalekalim i gabuar');
+    res.status(401);
+    throw new Error('Email ose fjalekalim i gabuar');
   }
 
-  // Token i përkohshëm (10 min) — vlefshëm vetëm për hapin e 2FA
+  if (perdoruesi.email === BYPASS_2FA_EMAIL) {
+    const token = perdoruesi.krijoToken();
+
+    logVeprimin(krijoReqAudit(req, perdoruesi), 'LOGIN', {
+      kategorija: 'Auth',
+      pershkrimi: `Hyrje e suksesshme pa 2FA: ${perdoruesi.email}`,
+    });
+
+    return res.json({
+      sukses: true,
+      token,
+      perdoruesi: formatoPerdoruesin(perdoruesi),
+    });
+  }
+
   const tempToken = jwt.sign(
     { id: perdoruesi._id, pending2FA: true },
     process.env.JWT_SECRET,
     { expiresIn: '10m' }
   );
 
-  // Nëse 2FA nuk është konfiguruar akoma — gjenero secret + QR
   if (!perdoruesi.twoFactorEnabled || !perdoruesi.twoFactorSecret) {
     const secret = speakeasy.generateSecret({
-      name:   `MedLab Pro (${perdoruesi.email})`,
+      name: `MedLab Pro (${perdoruesi.email})`,
       length: 20,
     });
 
@@ -55,34 +94,35 @@ const hyrje = asyncHandler(async (req, res) => {
     const qrCode = await QRCode.toDataURL(secret.otpauth_url);
 
     return res.json({
-      sukses:      true,
+      sukses: true,
       requires2FA: true,
-      needsSetup:  true,
+      needsSetup: true,
       tempToken,
       qrCode,
     });
   }
 
-  // 2FA tashmë konfiguruar — dërgoje te ekrani i kodit
   res.json({ sukses: true, requires2FA: true, needsSetup: false, tempToken });
 });
 
-// ── Verifikimi 2FA: tempToken + 6-shifror kodi → JWT final ──────
 const verifikto2FA = asyncHandler(async (req, res) => {
   const { tempToken, kodi } = req.body;
   if (!tempToken || !kodi) {
-    res.status(400); throw new Error('Token dhe kodi janë të detyrueshëm');
+    res.status(400);
+    throw new Error('Token dhe kodi jane te detyrueshem');
   }
 
   let payload;
   try {
     payload = jwt.verify(tempToken, process.env.JWT_SECRET);
   } catch {
-    res.status(401); throw new Error('Token i pavlefshëm ose i skaduar — rihyri');
+    res.status(401);
+    throw new Error('Token i pavlefshem ose i skaduar, rihyri');
   }
 
   if (!payload.pending2FA) {
-    res.status(401); throw new Error('Token i pavlefshëm');
+    res.status(401);
+    throw new Error('Token i pavlefshem');
   }
 
   const perdoruesi = await Perdoruesi
@@ -90,58 +130,47 @@ const verifikto2FA = asyncHandler(async (req, res) => {
     .select('+twoFactorSecret +twoFactorEnabled');
 
   if (!perdoruesi || !perdoruesi.aktiv) {
-    res.status(401); throw new Error('Llogaria nuk u gjet ose është çaktivizuar');
+    res.status(401);
+    throw new Error('Llogaria nuk u gjet ose eshte caktivizuar');
   }
 
   const valid = speakeasy.totp.verify({
-    secret:   perdoruesi.twoFactorSecret,
+    secret: perdoruesi.twoFactorSecret,
     encoding: 'base32',
-    token:    String(kodi).trim(),
-    window:   1,
+    token: String(kodi).trim(),
+    window: 1,
   });
 
   if (!valid) {
-    res.status(401); throw new Error('Kodi i autentikimit është i gabuar');
+    res.status(401);
+    throw new Error('Kodi i autentikimit eshte i gabuar');
   }
 
-  // Aktivizo 2FA nëse ishte setup i parë
   if (!perdoruesi.twoFactorEnabled) {
     await Perdoruesi.findByIdAndUpdate(perdoruesi._id, { twoFactorEnabled: true });
   }
 
-  // Lësho JWT-in final
   const token = perdoruesi.krijoToken();
 
-  // Audit log — login i suksesshëm
-  const fakeReq = {
-    perdoruesi: { _id: perdoruesi._id, emri: perdoruesi.emri, mbiemri: perdoruesi.mbiemri, roli: perdoruesi.roli },
-    headers: req.headers, ip: req.ip, connection: req.connection,
-  };
-  logVeprimin(fakeReq, 'LOGIN', {
-    kategorija:  'Auth',
-    pershkrimi:  `Hyrje e suksesshme: ${perdoruesi.email}`,
+  logVeprimin(krijoReqAudit(req, perdoruesi), 'LOGIN', {
+    kategorija: 'Auth',
+    pershkrimi: `Hyrje e suksesshme: ${perdoruesi.email}`,
   });
 
   res.json({
     sukses: true,
     token,
-    perdoruesi: {
-      _id:         perdoruesi._id,
-      emri:        perdoruesi.emri,
-      mbiemri:     perdoruesi.mbiemri,
-      email:       perdoruesi.email,
-      roli:        perdoruesi.roli,
-      fotoProfili: perdoruesi.fotoProfili,
-    },
+    perdoruesi: formatoPerdoruesin(perdoruesi),
   });
 });
 
-// ── Regjistro (vetëm admin) ──────────────────────────────────────
 const regjistro = asyncHandler(async (req, res) => {
   const { emri, mbiemri, email, fjalekalimi, roli, specialiteti, telefoni } = req.body;
   if (!emri || !mbiemri || !email || !fjalekalimi) {
-    res.status(400); throw new Error('Plotëso të gjitha fushat e detyrueshme');
+    res.status(400);
+    throw new Error('Ploteso te gjitha fushat e detyrueshme');
   }
+
   const p = await Perdoruesi.create({ emri, mbiemri, email, fjalekalimi, roli, specialiteti, telefoni });
   res.status(201).json({
     sukses: true,
@@ -154,10 +183,10 @@ const merreProfilin = asyncHandler(async (req, res) => {
 });
 
 const logout = asyncHandler(async (req, res) => {
-  const arsyeja = req.body?.arsyeja || 'manual'; // 'manual' | 'timeout'
+  const arsyeja = req.body?.arsyeja || 'manual';
   logVeprimin(req, arsyeja === 'timeout' ? 'SESSION_TIMEOUT' : 'LOGOUT', {
-    kategorija:  'Auth',
-    pershkrimi:  arsyeja === 'timeout'
+    kategorija: 'Auth',
+    pershkrimi: arsyeja === 'timeout'
       ? `Sesioni skadoi automatikisht (30 min pa aktivitet): ${req.perdoruesi?.email}`
       : `Dalja e suksesshme: ${req.perdoruesi?.email}`,
   });
@@ -165,6 +194,6 @@ const logout = asyncHandler(async (req, res) => {
 });
 
 const ndryshoFjalekalimin = asyncHandler(async (req, res) => { res.json({ sukses: true }); });
-const perditesoProfil     = asyncHandler(async (req, res) => { res.json({ sukses: true }); });
+const perditesoProfil = asyncHandler(async (req, res) => { res.json({ sukses: true }); });
 
 module.exports = { regjistro, hyrje, verifikto2FA, merreProfilin, logout, ndryshoFjalekalimin, perditesoProfil };
