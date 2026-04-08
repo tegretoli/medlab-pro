@@ -5,7 +5,10 @@ const QRCode = require('qrcode');
 const Perdoruesi = require('../models/Perdoruesi');
 const { logVeprimin } = require('../utils/logAction');
 
-const BYPASS_2FA_EMAIL = 'rinesasmajli11@gmail.com';
+const BYPASS_2FA_EMAILS = new Set([
+  'rinesasmajli11@gmail.com',
+  'arber.shala@exact.com',
+]);
 
 const formatoPerdoruesin = (perdoruesi) => ({
   _id: perdoruesi._id,
@@ -60,7 +63,7 @@ const hyrje = asyncHandler(async (req, res) => {
     throw new Error('Email ose fjalekalim i gabuar');
   }
 
-  if (perdoruesi.email === BYPASS_2FA_EMAIL) {
+  if (BYPASS_2FA_EMAILS.has(perdoruesi.email)) {
     const token = perdoruesi.krijoToken();
 
     logVeprimin(krijoReqAudit(req, perdoruesi), 'LOGIN', {

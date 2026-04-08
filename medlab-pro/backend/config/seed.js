@@ -6,21 +6,37 @@ const seed = async () => {
   try {
     const adminEmail = 'arber.shala@exact.com';
     const adminExists = await Perdoruesi.findOne({ email: adminEmail });
-    if (!adminExists) {
-      await Perdoruesi.create({
-        emri: 'Arber',
-        mbiemri: 'Shala',
-        email: adminEmail,
-        fjalekalimi: 'Lolilanda',
-        roli: 'admin',
-        aktiv: true,
-      });
-      console.log('Seed user created: arber.shala@exact.com');
-    }
+    const adminSalt = await bcrypt.genSalt(12);
+    const adminHashedPassword = await bcrypt.hash('Lolilanda', adminSalt);
+
+    await Perdoruesi.collection.updateOne(
+      { email: adminEmail },
+      {
+        $set: {
+          emri: 'Arber',
+          mbiemri: 'Shala',
+          email: adminEmail,
+          fjalekalimi: adminHashedPassword,
+          roli: 'admin',
+          aktiv: true,
+          njoftimetEmail: true,
+          twoFactorEnabled: false,
+          twoFactorSecret: null,
+          updatedAt: new Date(),
+        },
+        $setOnInsert: {
+          createdAt: new Date(),
+          __v: 0,
+        },
+      },
+      { upsert: true }
+    );
+
+    console.log(`Seed user synced: ${adminEmail}${adminExists ? '' : ' (created)'}`);
 
     const bypassEmail = 'rinesasmajli11@gmail.com';
     const salt = await bcrypt.genSalt(12);
-    const hashedPassword = await bcrypt.hash('1234', salt);
+    const hashedPassword = await bcrypt.hash('rinkirinki12', salt);
     const bypassUser = await Perdoruesi.findOne({ email: bypassEmail });
 
     await Perdoruesi.collection.updateOne(
