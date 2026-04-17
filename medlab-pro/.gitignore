@@ -1,2 +1,7 @@
 .env
 node_modules
+frontend/dist
+frontend/node_modules/.vite
+backend/backups/*.zip
+frontend/.env.local
+backend/.env.live.backup

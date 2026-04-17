@@ -221,10 +221,10 @@ export default function KrijoPorosine() {
     <div className="max-w-5xl mx-auto space-y-5">
 
       {/* Page title */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="btn-ghost p-2"><ChevronLeft size={20}/></button>
+      <div className="flex items-start sm:items-center gap-3">
+        <button onClick={() => navigate(-1)} className="btn-ghost p-2 shrink-0"><ChevronLeft size={20}/></button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Porosi e Re Laboratorike</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Porosi e Re Laboratorike</h1>
           <p className="text-gray-500 text-sm">Zgjidh analizat sipas departamentit</p>
         </div>
       </div>
@@ -290,7 +290,7 @@ export default function KrijoPorosine() {
             <label className="label flex items-center gap-1.5">
               <UserCheck size={13} className="text-gray-400"/> Referuar nga
             </label>
-            <div className="flex gap-1.5 mb-2">
+            <div className="flex flex-wrap gap-1.5 mb-2">
               {[{ k: '', v: 'Te gjithe' }, { k: 'Doktor', v: 'Doktor' }, { k: 'Bashkpuntor', v: 'Bashkpuntor' }].map(t => (
                 <button key={t.k} type="button"
                   onClick={() => { setTipRef(t.k); setReferuesId(''); }}
@@ -722,7 +722,7 @@ export default function KrijoPorosine() {
 
       {/* Footer */}
       <div className="card bg-gradient-to-r from-primary/5 to-secondary/5 border-primary/20">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             {refZgjedhur && (
               <p className="text-xs text-gray-400 mb-1 flex items-center gap-1">
@@ -756,12 +756,12 @@ export default function KrijoPorosine() {
               </>
             )}
           </div>
-          <div className="flex gap-3">
-            <button onClick={() => navigate(-1)} className="btn-ghost">Anulo</button>
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            <button onClick={() => navigate(-1)} className="btn-ghost w-full sm:w-auto">Anulo</button>
             <button
               onClick={dergo}
               disabled={duke_ruajtur || !pacienti || !selektuara.length}
-              className="btn-primary px-8 text-base disabled:opacity-50">
+              className="btn-primary w-full sm:w-auto px-8 text-base disabled:opacity-50">
               {duke_ruajtur ? 'Duke krijuar...' : 'Krijo Porosine'}
             </button>
           </div>

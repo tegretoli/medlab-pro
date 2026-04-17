@@ -58,12 +58,12 @@ export default function ListaPacienteve() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Pacientet</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Pacientet</h1>
           <p className="text-gray-500 text-sm">{total} paciente gjithsej</p>
         </div>
-        <Link to="/pacientet/regjistro" className="btn-primary flex items-center gap-2">
+        <Link to="/pacientet/regjistro" className="btn-primary w-full sm:w-auto flex items-center justify-center gap-2">
           <Plus size={18} /> Regjistro Pacient
         </Link>
       </div>
@@ -169,7 +169,7 @@ export default function ListaPacienteve() {
 
         {/* Faqezimi */}
         {faqetTotal > 1 && (
-          <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
+          <div className="px-4 py-3 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <p className="text-sm text-gray-500">Faqja {faqe} nga {faqetTotal}</p>
             <div className="flex gap-2">
               <button onClick={() => setFaqe(p => Math.max(1, p-1))} disabled={faqe===1}
@@ -203,7 +203,7 @@ export default function ListaPacienteve() {
                 className="input resize-none"
                 autoFocus
               />
-              <div className="flex gap-2 mt-3 justify-end">
+              <div className="flex flex-col-reverse sm:flex-row gap-2 mt-3 justify-end">
                 <button onClick={() => setModalShenimi(null)} className="btn-ghost text-sm">Anulo</button>
                 {tekstShenimi !== modalShenimi.shenime && tekstShenimi === '' && (
                   <button onClick={ruajShenimin} disabled={dukeShenon}

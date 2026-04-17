@@ -4,10 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MedLab Pro — Sistemi Klinik</title>
-    <script type="module" crossorigin src="/assets/index-BY3yFpCW.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-B59L9uDj.css">
+    <script>
+      if (localStorage.getItem('darkMode') === 'true') {
+        document.documentElement.classList.add('dark');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-BTDhFwL9.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-DuP50TK9.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-charts-DpDaP8fJ.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-xlsx-DrgRuPKf.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-D4mDDpVP.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
   </body>
 </html>
