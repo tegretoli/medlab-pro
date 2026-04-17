@@ -470,17 +470,29 @@ function InlineRezultate({ porosiId, dep, onUpdated }) {
   const hapPDF = async () => {
     setDukePDF(true);
     const win = window.open('', '_blank');
+    if (!win) {
+      toast.error('Dritarja e PDF u bllokua. Lejo popups dhe provo përsëri.');
+      setDukePDF(false);
+      return;
+    }
+    win.document.write('<p style="font-family:sans-serif;padding:1rem;">Duke ngarkuar PDF...</p>');
     try {
       const resp = await api.get(`/laborator/porosi/${porosiId}/pdf`, { responseType: 'blob', params: vulaParams() });
       const blob = new Blob([resp.data], { type: 'application/pdf' });
       const url  = window.URL.createObjectURL(blob) + '#' + encodeURIComponent(emriSkedar() + '.pdf');
-      if (win) {
+      if (!win.closed) {
         win.location.href = url;
-        setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url);
+          if (!win.closed) win.document.title = `${emriSkedar()}.pdf`;
+        }, 60000);
       }
-    } catch {
-      if (win) win.close();
-      toast.error('Gabim gjate hapjes se PDF');
+    } catch (err) {
+      console.error('PDF open error:', err);
+      if (!win.closed) win.close();
+      const status = err.response?.status;
+      const message = err.response?.data?.message || err.message || 'Gabim gjatë hapjes së PDF';
+      toast.error(status ? `Gabim PDF ${status}: ${message}` : message);
     }
     setDukePDF(false);
   };
