@@ -467,6 +467,20 @@ function InlineRezultate({ porosiId, dep, onUpdated }) {
       .filter(Boolean).join('_').replace(/\s+/g, '_');
   };
 
+  const nxirrMesazhinEPDF = async (err) => {
+    const data = err?.response?.data;
+    if (data instanceof Blob) {
+      try {
+        const text = await data.text();
+        const parsed = JSON.parse(text);
+        return parsed?.mesazh || parsed?.message || err.message;
+      } catch {
+        return err.message;
+      }
+    }
+    return data?.mesazh || data?.message || err.message || 'Gabim gjate hapjes se PDF';
+  };
+
   const hapPDF = async () => {
     setDukePDF(true);
     const win = window.open('', '_blank');

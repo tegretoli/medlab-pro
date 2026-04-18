@@ -33,6 +33,16 @@ const trajtojGabimin = (gabim, req, res, next) => {
     mesazh    = 'Token-i ka skaduar, hyr perseri';
   }
 
+  console.error('[API ERROR]', {
+    method: req?.method,
+    path: req?.originalUrl || req?.url,
+    statusKod,
+    mesazh,
+    errorName: gabim?.name,
+    errorMessage: gabim?.message,
+    stack: gabim?.stack,
+  });
+
   res.status(statusKod).json({
     sukses: false,
     mesazh,

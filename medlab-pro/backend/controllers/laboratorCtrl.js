@@ -704,7 +704,27 @@ const gjeneroRaportPDF = asyncHandler(async (req, res) => {
     await PorosiLab.findByIdAndUpdate(porosi._id, { tokenPublik: tok });
     porosi.tokenPublik = tok;
   }
-  const pdfBuffer = await gjeneroPDF(porosi, settings);
+  let pdfBuffer;
+  try {
+    pdfBuffer = await gjeneroPDF(porosi, settings);
+  } catch (err) {
+    console.error('[PDF GENERATION ERROR]', {
+      porosiId: req.params.id,
+      numrPorosi: porosi.numrPorosi,
+      pacientiId: porosi.pacienti?._id,
+      kaLogo: Boolean(settings.logo),
+      qrBaseUrl: settings.qrBaseUrl,
+      vulaParam,
+      nenshkrimeAktive: nenshkrimet.map((n) => ({
+        id: String(n._id),
+        emri: `${n.emri || ''} ${n.mbiemri || ''}`.trim(),
+        kaFoto: Boolean(n.foto),
+      })),
+      errorMessage: err.message,
+      stack: err.stack,
+    });
+    throw err;
+  }
 
   const pac = porosi.pacienti || {};
   const emriSkedar = [pac.emri, pac.mbiemri, porosi.numrPorosi]

@@ -1,4 +1,5 @@
 const PDFDocument = require('pdfkit');
+const axios = require('axios');
 
 // ─── Ngjyra ──────────────────────────────────────────────────────────────────
 const C = {
@@ -216,6 +217,33 @@ function countHtmlLines(html, charsPerLine = 90) {
   }, 0) || 1;
 }
 
+async function imageSourceToBuffer(source) {
+  if (!source || typeof source !== 'string') return null;
+
+  const value = source.trim();
+  if (!value) return null;
+
+  try {
+    if (/^data:image\/[a-zA-Z0-9.+-]+;base64,/i.test(value)) {
+      return Buffer.from(value.replace(/^data:[^;]+;base64,/i, ''), 'base64');
+    }
+
+    if (/^https?:\/\//i.test(value)) {
+      const resp = await axios.get(value, {
+        responseType: 'arraybuffer',
+        timeout: 10000,
+      });
+      const contentType = String(resp.headers?.['content-type'] || '');
+      if (!contentType.startsWith('image/')) return null;
+      return Buffer.from(resp.data);
+    }
+
+    return Buffer.from(value, 'base64');
+  } catch (_) {
+    return null;
+  }
+}
+
 function drawHtmlText(doc, html, x, y, maxW, def = {}) {
   if (!html) return y;
   const isHtml = /<[a-zA-Z]/.test(html);
@@ -365,6 +393,14 @@ async function gjeneroRaportPDF(porosi, settings = {}) {
     } catch (_) {}
   }
 
+  const logoBuf = await imageSourceToBuffer(settings.logo);
+  const nenshkrimetMeBuffer = await Promise.all(
+    (settings.nenshkrimet || []).map(async (sig) => ({
+      ...sig,
+      _fotoBuf: await imageSourceToBuffer(sig?.foto),
+    }))
+  );
+
   return new Promise((resolve, reject) => {
     const chunks = [];
     const doc = new PDFDocument({
@@ -422,20 +458,11 @@ async function gjeneroRaportPDF(porosi, settings = {}) {
     const fmtDT = (d) => d ? `${fmtD(d)}  ${new Date(d).toLocaleTimeString('sq-AL', { hour:'2-digit', minute:'2-digit', hour12: false })}` : '—';
     const sot   = new Date();
 
-    // ── Pre-process logo ────────────────────────────────────────
-    let logoBuf = null;
-    if (settings.logo) {
-      try {
-        const b64 = settings.logo.replace(/^data:[^;]+;base64,/, '');
-        logoBuf   = Buffer.from(b64, 'base64');
-      } catch (_) {}
-    }
-
     const qrBuf = _qrBuf;
 
     // ── Page layout ─────────────────────────────────────────────
-    const nenshkrimet  = settings.nenshkrimet || [];
-    const hasPhotos    = nenshkrimet.some(n => n.foto);
+    const nenshkrimet  = nenshkrimetMeBuffer;
+    const hasPhotos    = nenshkrimet.some(n => n._fotoBuf);
     const SIG_AREA_H   = nenshkrimet.length > 0 ? (hasPhotos ? 95 : 52) : 30;
     const SIG_Y  = PH - SIG_AREA_H - 38;
     const FOOT_Y = PH - 30;
@@ -484,14 +511,12 @@ async function gjeneroRaportPDF(porosi, settings = {}) {
           }
 
           // Vula/Foto — posht emrit dhe titullit
-          if (sig.foto) {
+          if (sig._fotoBuf) {
             try {
-              const b64     = sig.foto.replace(/^data:[^;]+;base64,/, '');
-              const fotoBuf = Buffer.from(b64, 'base64');
               const fW      = Math.min(sW - 4, 90);
               const fH      = 45;
               const imgX    = sig.align === 'right' ? sX + sW - fW : sX;
-              doc.image(fotoBuf, imgX, nextRowY, { fit: [fW, fH], align: txtAlign, valign: 'top' });
+              doc.image(sig._fotoBuf, imgX, nextRowY, { fit: [fW, fH], align: txtAlign, valign: 'top' });
               nextRowY += fH + 2;
             } catch (_) {}
           }
