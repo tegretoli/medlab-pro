@@ -89,17 +89,44 @@ medlab-pro/
 
 ## ☁️ Deploy (Production)
 
-### Backend → Render.com (FALAS)
-1. Push kodin ne GitHub
-2. render.com → New Web Service
-3. Zgjidh repo → Root: `backend`
-4. Build: `npm install` | Start: `node server.js`
-5. Shto variablat `.env`
+### Backend → Render.com
+1. Push kodin ne GitHub.
+2. Krijo `Web Service` me root `backend`.
+3. Build command: `npm install`
+4. Start command: `node server.js`
+5. Vendos environment variables ne Render:
 
-### Frontend → Vercel (FALAS)
-1. vercel.com → Import Project
-2. Root Directory: `frontend`
-3. Shto `VITE_API_URL=https://medlab-api.render.com/api`
+```env
+NODE_ENV=production
+MONGO_URI=mongodb+srv://...
+JWT_SECRET=vendos-nje-secret-te-ri
+JWT_EXPIRE=30d
+CLIENT_URL=https://medlab-pro.com
+CORS_ORIGINS=https://medlab-pro.com,https://www.medlab-pro.com
+CLOUDINARY_NAME=...
+CLOUDINARY_KEY=...
+CLOUDINARY_SECRET=...
+```
+
+6. Mos vendos `PORT` ne Render nese nuk ke nevoje; Render e menaxhon vete.
+7. Backend-i duhet ta kete `app.set('trust proxy', 1);` dhe duhet te niset vetem pasi MongoDB te jete lidhur.
+
+### Frontend → Vercel
+1. Importo projektin me root `frontend`.
+2. Vendos environment variable:
+
+```env
+VITE_API_URL=https://medlab-backend-hxho.onrender.com/api
+```
+
+3. Nese domeni kryesor eshte `https://medlab-pro.com`, sigurohu qe ai domen te jete i lidhur me frontend-in.
+4. Pas ndryshimeve ne env, bej redeploy frontend-in.
+
+### Kontrolli Final
+1. Hape `https://medlab-pro.com`.
+2. Testo hyrjen.
+3. Testo nje PDF publik ose PDF nga paneli.
+4. Nese login punon por PDF jo, kontrollo ne browser `Network` qe kerkesa po shkon te backend-i live dhe jo te `localhost`.
 
 ---
 

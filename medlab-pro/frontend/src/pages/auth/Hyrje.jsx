@@ -62,15 +62,15 @@ export default function Hyrje() {
             <form onSubmit={handleSubmit} className="space-y-3.5">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-white">
-                  Email
+                  Email ose username
                 </label>
                 <input
-                  type="email"
+                  type="text"
                   className="h-14 w-full rounded-2xl border border-white/12 bg-white/90 px-4 text-[15px] text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#7be0da] focus:ring-4 focus:ring-[#7be0da]/15"
                   placeholder="Shkruani adresën tuaj të emailit"
                   value={forma.email}
                   onChange={e => set('email', e.target.value)}
-                  autoComplete="email"
+                  autoComplete="username"
                   required
                 />
               </div>

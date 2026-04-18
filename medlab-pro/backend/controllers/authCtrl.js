@@ -10,6 +10,11 @@ const BYPASS_2FA_EMAILS = new Set([
   'arber.shala@exact.com',
 ]);
 
+const LOGIN_IDENTIFIER_ALIASES = new Map([
+  ['arbershaa', 'arber.shala@exact.com'],
+  ['rinesmsjali', 'rinesasmajli11@gmail.com'],
+]);
+
 const formatoPerdoruesin = (perdoruesi) => ({
   _id: perdoruesi._id,
   emri: perdoruesi.emri,
@@ -33,13 +38,16 @@ const krijoReqAudit = (req, perdoruesi) => ({
 
 const hyrje = asyncHandler(async (req, res) => {
   const { email, fjalekalimi } = req.body;
-  if (!email || !fjalekalimi) {
+  const identifikuesi = String(email || '').trim().toLowerCase();
+  const emailNormalizuar = LOGIN_IDENTIFIER_ALIASES.get(identifikuesi) || identifikuesi;
+
+  if (!emailNormalizuar || !fjalekalimi) {
     res.status(400);
-    throw new Error('Email dhe fjalekalimi jane te detyrueshem');
+    throw new Error('Email/username dhe fjalekalimi jane te detyrueshem');
   }
 
   const perdoruesi = await Perdoruesi
-    .findOne({ email: email.toLowerCase() })
+    .findOne({ email: emailNormalizuar })
     .select('+fjalekalimi +twoFactorSecret +twoFactorEnabled');
 
   if (!perdoruesi || !perdoruesi.aktiv) {
@@ -54,8 +62,8 @@ const hyrje = asyncHandler(async (req, res) => {
       'LOGIN_FAILED',
       {
         kategorija: 'Auth',
-        rekordEmri: email,
-        pershkrimi: `Tentative e deshtuar hyrjeje: ${email}`,
+        rekordEmri: emailNormalizuar,
+        pershkrimi: `Tentative e deshtuar hyrjeje: ${emailNormalizuar}`,
         statusi: 'deshtoi',
       }
     );

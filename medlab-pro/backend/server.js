@@ -31,14 +31,8 @@ const backupRoutes       = require('./routes/backupRoutes');
 const alarmRoutes        = require('./routes/alarmRoutes');
 const kodZbritjeRoutes   = require('./routes/kodZbritjeRoutes');
 
-// Lidhu me DB, seed dhe nis cron-in e backup
-connectDB().then(async () => {
-  await seed();
-  const { inicializoCronin } = require('./utils/backupCron');
-  await inicializoCronin();
-});
-
 const app = express();
+app.set('trust proxy', 1);
 
 // ─── Security Middleware ─────────────────────────────────────────────────────
 app.use(helmet());
@@ -130,7 +124,21 @@ const nisServer = (port) => {
     });
 };
 
-nisServer(PORTI_PARAZGJEDHUR);
+const bootstrap = async () => {
+  try {
+    // Sigurohu qe DB, seed dhe cron te jene gati para se serveri te pranoje kerkesa.
+    await connectDB();
+    await seed();
+    const { inicializoCronin } = require('./utils/backupCron');
+    await inicializoCronin();
+    nisServer(PORTI_PARAZGJEDHUR);
+  } catch (err) {
+    console.error(`Gabim gjate nisjes: ${err.message}`);
+    process.exit(1);
+  }
+};
+
+bootstrap();
 
 // Menaxhimi i gabimeve te patrajtuar
 process.on('unhandledRejection', (err) => {
