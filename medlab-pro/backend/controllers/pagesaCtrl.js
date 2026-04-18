@@ -2,7 +2,7 @@ const asyncHandler = require('express-async-handler');
 const Fatura    = require('../models/Fatura');
 const PorosiLab = require('../models/PorosiLab');
 const Profili   = require('../models/Profili');
-const { gjeneroPDF_Fatura } = require('../utils/pdfGenerator');
+const { gjeneroPDF_FaturaPatient } = require('../utils/pdfGenerator');
 const { dergEmailFatura } = require('../utils/email');
 const { ruajLogun } = require('./kodZbritjeCtrl');
 
@@ -71,7 +71,7 @@ const regjistroPagesen = asyncHandler(async (req, res) => {
 const shkarkoFaturenPDF = asyncHandler(async (req, res) => {
   const fatura = await Fatura.findById(req.params.id).populate('pacienti').populate('krijoNga', 'emri mbiemri');
   if (!fatura) { res.status(404); throw new Error('Fatura nuk u gjet'); }
-  const pdfBuffer = await gjeneroPDF_Fatura(fatura);
+  const pdfBuffer = await gjeneroPDF_FaturaPatient(fatura);
   res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${fatura.numrFatures}.pdf"` });
   res.send(pdfBuffer);
 });
