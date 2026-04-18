@@ -418,11 +418,7 @@ async function gjeneroRaportPDF(porosi, settings = {}) {
     doc.on('error', reject);
 
     // ── Font me mbeshtetje emoji (Segoe UI Symbol) ───────────────
-    let HDR_FONT = 'Helvetica-Bold';
-    try {
-      doc.registerFont('SegoeSym', 'C:/Windows/Fonts/seguisym.ttf');
-      HDR_FONT = 'SegoeSym';
-    } catch (_) {}
+    const HDR_FONT = 'Helvetica-Bold';
 
     const W  = doc.page.width - 80;  // 515.28pt
     const PW = doc.page.width;
