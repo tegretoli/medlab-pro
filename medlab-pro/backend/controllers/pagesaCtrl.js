@@ -1,10 +1,69 @@
 const asyncHandler = require('express-async-handler');
+const crypto = require('crypto');
 const Fatura    = require('../models/Fatura');
 const PorosiLab = require('../models/PorosiLab');
 const Profili   = require('../models/Profili');
+const FiscalPrintJob = require('../models/FiscalPrintJob');
 const { gjeneroPDF_Fatura } = require('../utils/pdfGenerator');
 const { dergEmailFatura } = require('../utils/email');
 const { ruajLogun } = require('./kodZbritjeCtrl');
+const { buildFiscalPayloadFromOrders } = require('../utils/fiscalPayload');
+
+const FISCAL_TERMINAL_STATUSES = ['issued', 'failed'];
+
+const kerkoBridgeSecret = (req, res) => {
+  const headerSecret = req.headers['x-bridge-secret'];
+  const expected = process.env.FISCAL_BRIDGE_SECRET;
+
+  if (!expected || headerSecret !== expected) {
+    res.status(401);
+    throw new Error('Bridge secret i pavlefshem');
+  }
+};
+
+const krijoFiscalSnapshot = (status, job, extras = {}) => ({
+  status,
+  jobId: job?._id || null,
+  receiptNumber: extras.receiptNumber || '',
+  fiscalNumber: extras.fiscalNumber || '',
+  requestedAt: extras.requestedAt || job?.requestedAt || null,
+  issuedAt: extras.issuedAt || null,
+  updatedAt: new Date(),
+  errorMessage: extras.errorMessage || '',
+});
+
+const perditesoPorositeFiskale = async (orderIds, status, job, extras = {}) => {
+  await PorosiLab.updateMany(
+    { _id: { $in: orderIds } },
+    {
+      $set: {
+        'pagesa.fiskal': krijoFiscalSnapshot(status, job, extras),
+      },
+    }
+  );
+};
+
+const pasuroPorositeMeCmim = (porosite) => porosite.map((p) => {
+  const obj = p.toObject();
+  obj.cmimiTotal = p.cmimi || 0;
+  return obj;
+});
+
+const gjejJobAktiv = async (orderIds) => {
+  return FiscalPrintJob.findOne({
+    orderIds: { $all: orderIds, $size: orderIds.length },
+    status: { $in: ['pending', 'queued_to_flink'] },
+  }).sort({ createdAt: -1 });
+};
+
+const ngarkoPorositePerFiskal = async (orderIds) => {
+  const porosite = await PorosiLab.find({ _id: { $in: orderIds } })
+    .populate('pacienti', 'emri mbiemri numrPersonal')
+    .populate('analizat.analiza', 'emri cmime')
+    .sort({ createdAt: 1 });
+
+  return pasuroPorositeMeCmim(porosite);
+};
 
 // @route GET /api/pagesat/faturat
 const listoFaturat = asyncHandler(async (req, res) => {
@@ -235,6 +294,200 @@ const regjistroPagesenPorosi = asyncHandler(async (req, res) => {
   res.json({ sukses: true, porosi });
 });
 
+// @route POST /api/pagesat/fiskal/jobs
+const krijoFiscalJob = asyncHandler(async (req, res) => {
+  const incomingOrderIds = Array.isArray(req.body.orderIds) ? req.body.orderIds : [];
+  const orderIds = [...new Set(incomingOrderIds.filter(Boolean).map(String))];
+
+  if (!orderIds.length) {
+    res.status(400);
+    throw new Error('Duhet te dergoni te pakten nje porosi per printim fiskal');
+  }
+
+  const porosite = await ngarkoPorositePerFiskal(orderIds);
+  if (porosite.length !== orderIds.length) {
+    res.status(404);
+    throw new Error('Nje ose me shume porosi nuk u gjeten');
+  }
+
+  if (porosite.some((porosi) => porosi.pagesa?.statusi !== 'Paguar')) {
+    res.status(400);
+    throw new Error('Vetem porosite e paguara mund te dergohen per printim fiskal');
+  }
+
+  if (porosite.some((porosi) => porosi.pagesa?.fiskal?.status === 'issued')) {
+    res.status(409);
+    throw new Error('Te paktën nje porosi eshte leshuar tashme fiskalisht');
+  }
+
+  const patientIds = new Set(porosite.map((porosi) => String(porosi.pacienti?._id || '')));
+  if (patientIds.size > 1) {
+    res.status(400);
+    throw new Error('Job-i fiskal duhet te permbaje porosi te te njejtit pacient');
+  }
+
+  const aktiv = await gjejJobAktiv(orderIds);
+  if (aktiv) {
+    return res.json({ sukses: true, created: false, job: aktiv });
+  }
+
+  const payload = buildFiscalPayloadFromOrders(porosite);
+  const patient = porosite[0]?.pacienti;
+  const requester = req.perdoruesi
+    ? { id: req.perdoruesi._id, emri: `${req.perdoruesi.emri || ''} ${req.perdoruesi.mbiemri || ''}`.trim() }
+    : { id: null, emri: '' };
+
+  const job = await FiscalPrintJob.create({
+    correlationId: crypto.randomUUID(),
+    status: 'pending',
+    orderIds,
+    pacienti: {
+      id: patient?._id || null,
+      emri: [patient?.emri, patient?.mbiemri].filter(Boolean).join(' ').trim(),
+    },
+    requestedBy: requester,
+    payload,
+    adapter: {
+      type: 'f-link-folder',
+      payloadFormat: 'fp700ks-sale-v1',
+      watchedFolder: process.env.FLINK_WATCH_FOLDER || process.env.PRINTER_FOLDER || 'C:\\Temp',
+    },
+  });
+
+  await perditesoPorositeFiskale(orderIds, 'pending', job, { requestedAt: job.requestedAt });
+
+  res.status(201).json({ sukses: true, created: true, job });
+});
+
+// @route GET /api/pagesat/fiskal/jobs/:id
+const merrFiscalJob = asyncHandler(async (req, res) => {
+  const job = await FiscalPrintJob.findById(req.params.id);
+  if (!job) {
+    res.status(404);
+    throw new Error('Fiscal job nuk u gjet');
+  }
+  res.json({ sukses: true, job });
+});
+
+// @route POST /api/pagesat/fiskal/jobs/bridge/claim
+const bridgeClaimFiscalJob = asyncHandler(async (req, res) => {
+  kerkoBridgeSecret(req, res);
+
+  const bridgeId = req.body.bridgeId || req.headers['x-bridge-id'] || 'windows-bridge';
+  const staleMs = Number(process.env.FISCAL_BRIDGE_CLAIM_STALE_MS || 5 * 60 * 1000);
+  const staleBefore = new Date(Date.now() - staleMs);
+
+  const job = await FiscalPrintJob.findOneAndUpdate(
+    {
+      status: 'pending',
+      $or: [
+        { 'bridge.claimedAt': null },
+        { 'bridge.claimedAt': { $lte: staleBefore } },
+      ],
+    },
+    {
+      $set: {
+        'bridge.claimedAt': new Date(),
+        'bridge.claimedBy': String(bridgeId),
+        'bridge.lastHeartbeatAt': new Date(),
+      },
+      $inc: { 'bridge.attempts': 1 },
+    },
+    { new: true, sort: { requestedAt: 1 } }
+  );
+
+  res.json({ sukses: true, job: job || null });
+});
+
+// @route POST /api/pagesat/fiskal/jobs/:id/bridge/queued
+const bridgeQueueFiscalJob = asyncHandler(async (req, res) => {
+  kerkoBridgeSecret(req, res);
+
+  const { requestFileName = '', requestFilePath = '', payloadFormat = '', watchedFolder = '' } = req.body;
+  const job = await FiscalPrintJob.findById(req.params.id);
+  if (!job) {
+    res.status(404);
+    throw new Error('Fiscal job nuk u gjet');
+  }
+
+  job.status = 'queued_to_flink';
+  job.adapter = {
+    ...job.adapter,
+    watchedFolder: watchedFolder || job.adapter.watchedFolder,
+    requestFileName,
+    requestFilePath,
+    payloadFormat: payloadFormat || job.adapter.payloadFormat,
+  };
+  job.bridge.queuedAt = new Date();
+  job.bridge.lastHeartbeatAt = new Date();
+  await job.save();
+
+  await perditesoPorositeFiskale(job.orderIds, 'queued_to_flink', job, { requestedAt: job.requestedAt });
+
+  res.json({ sukses: true, job });
+});
+
+// @route POST /api/pagesat/fiskal/jobs/:id/bridge/complete
+const bridgeCompleteFiscalJob = asyncHandler(async (req, res) => {
+  kerkoBridgeSecret(req, res);
+
+  const {
+    status,
+    responseFileName = '',
+    responseFilePath = '',
+    receiptNumber = '',
+    fiscalNumber = '',
+    rawResponse = '',
+    errorCode = '',
+    errorMessage = '',
+  } = req.body;
+
+  if (!FISCAL_TERMINAL_STATUSES.includes(status)) {
+    res.status(400);
+    throw new Error('Statusi perfundimtar fiskal eshte i pavlefshem');
+  }
+
+  const job = await FiscalPrintJob.findById(req.params.id);
+  if (!job) {
+    res.status(404);
+    throw new Error('Fiscal job nuk u gjet');
+  }
+
+  job.status = status;
+  job.adapter = {
+    ...job.adapter,
+    responseFileName,
+    responseFilePath,
+  };
+  job.bridge.completedAt = new Date();
+  job.bridge.lastHeartbeatAt = new Date();
+  job.result = {
+    receiptNumber,
+    fiscalNumber,
+    issuedAt: status === 'issued' ? new Date() : null,
+    rawResponse,
+    errorCode,
+    errorMessage,
+  };
+  await job.save();
+
+  if (status === 'issued') {
+    await perditesoPorositeFiskale(job.orderIds, 'issued', job, {
+      requestedAt: job.requestedAt,
+      issuedAt: job.result.issuedAt,
+      receiptNumber,
+      fiscalNumber,
+    });
+  } else {
+    await perditesoPorositeFiskale(job.orderIds, 'failed', job, {
+      requestedAt: job.requestedAt,
+      errorMessage: errorMessage || 'Bridge e shenoi job-in si te deshtuar',
+    });
+  }
+
+  res.json({ sukses: true, job });
+});
+
 // @route GET /api/pagesat/borxhet-pacienteve
 // Returns a map { [pacientiId]: { shuma, numriPorosive } } for all patients with unpaid orders
 const borxhetPacienteve = asyncHandler(async (req, res) => {
@@ -266,4 +519,23 @@ const borxhiPacienti = asyncHandler(async (req, res) => {
   res.json({ sukses: true, porosite, totalShuma });
 });
 
-module.exports = { listoFaturat, merrFaturen, krijoFaturen, regjistroPagesen, shkarkoFaturenPDF, dergFaturenEmail, merreDetyrimet, merreStatistikat, raportMujor, listoPorosiPagesat, regjistroPagesenPorosi, borxhetPacienteve, borxhiPacienti };
+module.exports = {
+  listoFaturat,
+  merrFaturen,
+  krijoFaturen,
+  regjistroPagesen,
+  shkarkoFaturenPDF,
+  dergFaturenEmail,
+  merreDetyrimet,
+  merreStatistikat,
+  raportMujor,
+  listoPorosiPagesat,
+  regjistroPagesenPorosi,
+  krijoFiscalJob,
+  merrFiscalJob,
+  bridgeClaimFiscalJob,
+  bridgeQueueFiscalJob,
+  bridgeCompleteFiscalJob,
+  borxhetPacienteve,
+  borxhiPacienti,
+};

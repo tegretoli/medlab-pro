@@ -111,6 +111,24 @@ const skemaPorosiLab = new Schema({
     metodaPagese:   { type: String, enum: ['Kesh', 'Bank', 'ZbritjeTotale'] },
     dataPageses:    Date,
     kodZbritjes:    { type: String, default: null },
+    fiskal: {
+      status: {
+        type: String,
+        enum: ['not_requested', 'pending', 'queued_to_flink', 'issued', 'failed'],
+        default: 'not_requested',
+      },
+      jobId: {
+        type: Schema.Types.ObjectId,
+        ref: 'FiscalPrintJob',
+        default: null,
+      },
+      receiptNumber: { type: String, default: '' },
+      fiscalNumber:  { type: String, default: '' },
+      requestedAt:   { type: Date, default: null },
+      issuedAt:      { type: Date, default: null },
+      updatedAt:     { type: Date, default: null },
+      errorMessage:  { type: String, default: '' },
+    },
   },
   
   numrRendor:    Number, // 1, 2, 3... resetohet cdo dite

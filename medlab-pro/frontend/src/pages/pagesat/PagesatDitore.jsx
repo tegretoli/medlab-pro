@@ -9,9 +9,29 @@ import {
   ReceiptText, Tag, Loader2,
 } from 'lucide-react';
 import DateFilter, { labelData } from '../../components/ui/DateFilter';
+import FiscalPrintModal from '../../components/FiscalPrintModal';
+
+const FISCAL_STATUS_META = {
+  not_requested: { label: 'Pa lëshuar', dot: 'bg-gray-200', title: 'Nuk është lëshuar ende' },
+  pending: { label: 'Në pritje', dot: 'bg-amber-400', title: 'Job-i fiskal është në pritje' },
+  queued_to_flink: { label: 'Dërguar te F-Link', dot: 'bg-blue-500', title: 'Job-i fiskal është dërguar te F-Link' },
+  issued: { label: 'Lëshuar', dot: 'bg-green-500', title: 'Kuponi është lëshuar fiskalisht' },
+  failed: { label: 'Dështoi', dot: 'bg-red-500', title: 'Lëshimi fiskal ka dështuar' },
+};
+
+function getGroupFiscalState(group) {
+  const fiscalStates = (group?.porosite || []).map((p) => p.pagesa?.fiskal || { status: 'not_requested' });
+  const byStatus = (status) => fiscalStates.find((item) => item?.status === status);
+
+  if (byStatus('failed')) return byStatus('failed');
+  if (byStatus('queued_to_flink')) return byStatus('queued_to_flink');
+  if (byStatus('pending')) return byStatus('pending');
+  if (fiscalStates.length && fiscalStates.every((item) => item?.status === 'issued')) return fiscalStates[0];
+  return { status: 'not_requested' };
+}
 
 // ─── Kosovo-style Fiscal Receipt Modal ───────────────────────────────────────
-function ModalKuponiFiskal({ grup, settings, isLeShuar, onClose, onPrinted }) {
+function ModalKuponiFiskal({ grup, settings, fiscalState, onClose, onRefresh }) {
   const allPorosite = grup.porosite || [];
   const allPaid    = allPorosite.every(p => p.pagesa?.statusi === 'Paguar');
   const brutoTotal = allPorosite.reduce((s, p) => s + (p.cmimiTotal || 0), 0);
@@ -251,19 +271,6 @@ export default function PagesatDitore() {
   const [dukeValiduar, setDukeValiduar] = useState(false);
   const [fiskalGrupi, setFiskalGrupi]   = useState(null);
   const [settings, setSettings]         = useState(null);
-  const [leshuar, setLeshuar]           = useState(() => {
-    try {
-      const saved = localStorage.getItem('fiskal_leshuar');
-      if (!saved) return new Set();
-      const all = JSON.parse(saved);
-      // Keep only valid keys (MongoDB _id format: 24-char hex, possibly joined with _)
-      const valid = all.filter(k => /^[a-f0-9_]{24,}$/.test(k));
-      if (valid.length !== all.length) {
-        localStorage.setItem('fiskal_leshuar', JSON.stringify(valid));
-      }
-      return new Set(valid);
-    } catch { return new Set(); }
-  });
 
   useEffect(() => {
     api.get('/referuesit').then(r => setReferuesit(r.data.data || [])).catch(() => {});
@@ -304,6 +311,14 @@ export default function PagesatDitore() {
       })
       .map(p => ({ pacienti: p.pacienti, numrRendor: p.numrRendor, porosite: [p] }));
   }, [porosite, kerko, pacientiIdFilter]);
+
+  const leshuar = useMemo(() => {
+    return new Set(
+      grupuara
+        .filter((group) => getGroupFiscalState(group).status === 'issued')
+        .map((group) => (group.porosite || []).map((p) => p._id).sort().join('_'))
+    );
+  }, [grupuara]);
 
   const hapModal = group => {
     const papaguara = group.porosite.filter(p => p.pagesa?.statusi !== 'Paguar');
@@ -882,18 +897,14 @@ export default function PagesatDitore() {
 
       {/* Fiscal Receipt Modal */}
       {fiskalGrupi && (() => {
-        const key = (fiskalGrupi.porosite || []).map(p => p._id).sort().join('_');
+        const fiscalState = getGroupFiscalState(fiskalGrupi);
         return (
-          <ModalKuponiFiskal
+          <FiscalPrintModal
             grup={fiskalGrupi}
             settings={settings}
-            isLeShuar={leshuar.has(key)}
+            fiscalState={fiscalState}
             onClose={() => setFiskalGrupi(null)}
-            onPrinted={() => setLeshuar(prev => {
-              const next = new Set([...prev, key]);
-              try { localStorage.setItem('fiskal_leshuar', JSON.stringify([...next])); } catch {}
-              return next;
-            })}
+            onRefresh={ngarko}
           />
         );
       })()}
