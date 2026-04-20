@@ -1,6 +1,12 @@
 const fs = require('fs');
 const path = require('path');
-const { SerialPort } = require('serialport');
+
+let SerialPort = null;
+try {
+  ({ SerialPort } = require('serialport'));
+} catch {
+  SerialPort = null;
+}
 
 let printer = null;
 
@@ -18,6 +24,11 @@ const sanitizeField = (value, maxLength = 36) => {
 };
 
 const formatPrice = (value) => Number(value || 0).toFixed(2);
+const formatDiscountPercent = (value) => {
+  const amount = Number(value || 0);
+  if (!amount) return '0';
+  return amount.toFixed(2).replace(/\.?0+$/, '');
+};
 const formatQty = (value) => {
   const qty = Number(value || 0);
   if (Number.isInteger(qty)) return String(qty);
@@ -38,6 +49,8 @@ const buildFLinkSaleLine = (item, index) => {
   const itemPrice = formatPrice(item.unitPrice ?? item.lineTotal ?? 0);
   const qty = formatQty(item.qty ?? 1);
   const fiscalArticleId = Number(item.fiscalArticleId) || hashToFiscalArticleId(itemName);
+  const discountPercent = formatDiscountPercent(item.discountPercent);
+  const discountAmount = formatPrice(item.discountAmount);
 
   if (!itemName) {
     throw new Error(`Fiscal item ${index} has an empty name`);
@@ -45,7 +58,8 @@ const buildFLinkSaleLine = (item, index) => {
 
   // The last numeric field is treated by the device as the fiscal article/PLU code,
   // not as a transient line index. It must stay stable per service.
-  return `S,1,______,_,__;${itemName};${itemPrice};${qty};1;1;1;0;${fiscalArticleId};`;
+  // FP-700KS also supports row discount fields after the PLU code.
+  return `S,1,______,_,__;${itemName};${itemPrice};${qty};1;1;1;0;${fiscalArticleId};${discountPercent};${discountAmount};`;
 };
 
 /**
@@ -56,6 +70,11 @@ const buildFLinkSaleLine = (item, index) => {
 const inicializeZiharjen = (comPort, baudRate = 115200) => {
   return new Promise((resolve, reject) => {
     try {
+      if (!SerialPort) {
+        reject({ success: false, message: 'Paketa serialport nuk eshte e instaluar' });
+        return;
+      }
+
       if (printer?.isOpen) {
         resolve({ success: true, message: 'Printer already connected' });
         return;

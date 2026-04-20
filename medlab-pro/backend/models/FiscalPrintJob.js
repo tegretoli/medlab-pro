@@ -46,6 +46,9 @@ const fiscalPrintJobSchema = new Schema({
       lineTotal: { type: Number, default: 0 },
       vatCode: { type: String, default: '' },
       vatRate: { type: Number, default: 0 },
+      fiscalArticleId: { type: Number, default: 0 },
+      discountPercent: { type: Number, default: 0 },
+      discountAmount: { type: Number, default: 0 },
       orderId: { type: Schema.Types.ObjectId, ref: 'PorosiLab', default: null },
     }],
     raw: {

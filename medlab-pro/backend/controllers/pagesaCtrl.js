@@ -58,6 +58,28 @@ const gjejJobAktiv = async (orderIds) => {
   }).sort({ createdAt: -1 });
 };
 
+const payloadNeedsRefresh = (job, orders) => {
+  const items = Array.isArray(job?.payload?.items) ? job.payload.items : [];
+  const expectedCount = orders.reduce((sum, order) => {
+    const analyses = Array.isArray(order.analizat) ? order.analizat : [];
+    return sum + (analyses.length || 1);
+  }, 0);
+  const ordersHaveDiscount = orders.some((order) => {
+    const payment = order.pagesa || {};
+    return Number(payment.zbritjaPerqind || 0) > 0
+      || Number(payment.zbritjaFikse || 0) > 0
+      || Math.max(0, Number(payment.shumaTotale || 0) - Number(payment.shumaFinal || 0)) > 0.009;
+  });
+
+  if (!items.length || items.length !== expectedCount) return true;
+  if (items.some((item) => !Number(item.fiscalArticleId))) return true;
+  if (ordersHaveDiscount && items.every((item) => Number(item.discountPercent || 0) === 0 && Number(item.discountAmount || 0) === 0)) {
+    return true;
+  }
+
+  return false;
+};
+
 const ngarkoPorositePerFiskal = async (orderIds) => {
   const porosite = await PorosiLab.find({ _id: { $in: orderIds } })
     .populate('pacienti', 'emri mbiemri numrPersonal')
@@ -330,6 +352,14 @@ const krijoFiscalJob = asyncHandler(async (req, res) => {
 
   const aktiv = await gjejJobAktiv(orderIds);
   if (aktiv) {
+    if (aktiv.status === 'pending' && payloadNeedsRefresh(aktiv, porosite)) {
+      aktiv.payload = buildFiscalPayloadFromOrders(porosite);
+      aktiv.adapter = {
+        ...aktiv.adapter,
+        payloadFormat: 'fp700ks-sale-v2',
+      };
+      await aktiv.save();
+    }
     return res.json({ sukses: true, created: false, job: aktiv });
   }
 
@@ -351,7 +381,7 @@ const krijoFiscalJob = asyncHandler(async (req, res) => {
     payload,
     adapter: {
       type: 'f-link-folder',
-      payloadFormat: 'fp700ks-sale-v1',
+      payloadFormat: 'fp700ks-sale-v2',
       watchedFolder: process.env.FLINK_WATCH_FOLDER || process.env.PRINTER_FOLDER || 'C:\\Temp',
     },
   });

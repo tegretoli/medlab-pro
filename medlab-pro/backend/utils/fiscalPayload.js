@@ -6,6 +6,7 @@ const mapPaymentMethod = (metodaPagese) => {
 };
 
 const roundMoney = (value) => Math.round(Number(value || 0) * 100) / 100;
+const roundPercent = (value) => Math.round(Number(value || 0) * 100) / 100;
 
 const hashToFiscalArticleId = (input) => {
   const text = String(input || '').trim().toUpperCase();
@@ -26,42 +27,74 @@ const resolveFiscalArticleId = (analysis, fallbackName, fallbackOrderId) => {
   return hashToFiscalArticleId(`${fallbackName || ''}_${fallbackOrderId || ''}`);
 };
 
-const normalizeItemsToPaidTotal = (items, targetTotal) => {
-  if (!items.length) return items;
-
-  const currentTotal = roundMoney(items.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0));
-  const desiredTotal = roundMoney(targetTotal);
-
-  if (currentTotal <= 0 || Math.abs(currentTotal - desiredTotal) < 0.009) {
+const distributeFixedDiscount = (items, totalDiscount) => {
+  const roundedDiscount = roundMoney(totalDiscount);
+  if (!items.length || roundedDiscount <= 0) {
     return items.map((item) => ({
       ...item,
+      discountPercent: 0,
+      discountAmount: 0,
       unitPrice: roundMoney(item.unitPrice),
       lineTotal: roundMoney(item.lineTotal),
     }));
   }
 
-  const ratio = desiredTotal / currentTotal;
-  const normalized = items.map((item) => {
-    const qty = Number(item.qty || 1);
-    const scaledLineTotal = roundMoney(Number(item.lineTotal || 0) * ratio);
-    return {
+  const subtotal = roundMoney(items.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0));
+  if (subtotal <= 0) {
+    return items.map((item) => ({
       ...item,
-      lineTotal: scaledLineTotal,
-      unitPrice: roundMoney(scaledLineTotal / (qty || 1)),
-    };
-  });
-
-  const normalizedTotal = roundMoney(normalized.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0));
-  const diff = roundMoney(desiredTotal - normalizedTotal);
-
-  if (Math.abs(diff) >= 0.009 && normalized.length) {
-    const lastIndex = normalized.length - 1;
-    const lastQty = Number(normalized[lastIndex].qty || 1);
-    normalized[lastIndex].lineTotal = roundMoney(Number(normalized[lastIndex].lineTotal || 0) + diff);
-    normalized[lastIndex].unitPrice = roundMoney(normalized[lastIndex].lineTotal / (lastQty || 1));
+      discountPercent: 0,
+      discountAmount: 0,
+      unitPrice: roundMoney(item.unitPrice),
+      lineTotal: roundMoney(item.lineTotal),
+    }));
   }
 
-  return normalized;
+  let allocated = 0;
+  return items.map((item, index) => {
+    const gross = roundMoney(item.lineTotal);
+    const proportional = index === items.length - 1
+      ? roundMoney(roundedDiscount - allocated)
+      : roundMoney((gross / subtotal) * roundedDiscount);
+    const discountAmount = Math.max(0, Math.min(gross, proportional));
+    allocated = roundMoney(allocated + discountAmount);
+
+    return {
+      ...item,
+      discountPercent: 0,
+      discountAmount,
+      unitPrice: roundMoney(item.unitPrice),
+      lineTotal: gross,
+    };
+  });
+};
+
+const applyReceiptDiscounts = (items, payment, subtotal, total) => {
+  const normalizedItems = items.map((item) => ({
+    ...item,
+    unitPrice: roundMoney(item.unitPrice),
+    lineTotal: roundMoney(item.lineTotal),
+  }));
+  const discountPercent = roundPercent(payment?.zbritjaPerqind || 0);
+  const discountTotal = Math.max(0, roundMoney(subtotal - total));
+
+  if (!normalizedItems.length || discountTotal <= 0) {
+    return normalizedItems.map((item) => ({
+      ...item,
+      discountPercent: 0,
+      discountAmount: 0,
+    }));
+  }
+
+  if (discountPercent > 0) {
+    return normalizedItems.map((item) => ({
+      ...item,
+      discountPercent,
+      discountAmount: 0,
+    }));
+  }
+
+  return distributeFixedDiscount(normalizedItems, discountTotal);
 };
 
 const buildFiscalPayloadFromOrders = (orders) => {
@@ -113,7 +146,7 @@ const buildFiscalPayloadFromOrders = (orders) => {
     });
   });
 
-  const items = normalizeItemsToPaidTotal(rawItems, total);
+  const items = applyReceiptDiscounts(rawItems, firstPayment, subtotal, total);
 
   const invoiceNumber = firstOrder.numrPorosi || firstOrder.numrRendor || '';
 
