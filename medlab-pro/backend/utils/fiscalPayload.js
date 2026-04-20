@@ -7,6 +7,25 @@ const mapPaymentMethod = (metodaPagese) => {
 
 const roundMoney = (value) => Math.round(Number(value || 0) * 100) / 100;
 
+const hashToFiscalArticleId = (input) => {
+  const text = String(input || '').trim().toUpperCase();
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = ((hash * 31) + text.charCodeAt(i)) % 900000;
+  }
+  return hash + 1000;
+};
+
+const resolveFiscalArticleId = (analysis, fallbackName, fallbackOrderId) => {
+  const explicit = Number(analysis?.fiskalArticleId);
+  if (Number.isInteger(explicit) && explicit > 0) return explicit;
+
+  const code = String(analysis?.kodi || '').trim().toUpperCase();
+  if (code) return hashToFiscalArticleId(code);
+
+  return hashToFiscalArticleId(`${fallbackName || ''}_${fallbackOrderId || ''}`);
+};
+
 const normalizeItemsToPaidTotal = (items, targetTotal) => {
   if (!items.length) return items;
 
@@ -67,24 +86,28 @@ const buildFiscalPayloadFromOrders = (orders) => {
         lineTotal: Number(order.pagesa?.shumaFinal || order.cmimi || 0),
         vatCode: process.env.FISCAL_DEFAULT_VAT_CODE || '',
         vatRate,
+        fiscalArticleId: hashToFiscalArticleId(`${order.departamenti || 'SHERBIM'}_${order._id}`),
         orderId: order._id,
       }];
     }
 
     return analyses.map((analysis) => {
+      const analysisDoc = analysis.analiza || {};
       const price = Number(
-        analysis.analiza?.cmime?.[tipi] ??
-        analysis.analiza?.cmime?.pacient ??
+        analysisDoc?.cmime?.[tipi] ??
+        analysisDoc?.cmime?.pacient ??
         0
       );
+      const name = analysisDoc?.fiskalArticleName || analysisDoc?.emri || 'Sherbim laboratorik';
 
       return {
-        name: analysis.analiza?.emri || 'Sherbim laboratorik',
+        name,
         qty: 1,
         unitPrice: price,
         lineTotal: price,
         vatCode: process.env.FISCAL_DEFAULT_VAT_CODE || '',
         vatRate,
+        fiscalArticleId: resolveFiscalArticleId(analysisDoc, name, order._id),
         orderId: order._id,
       };
     });

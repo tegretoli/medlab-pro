@@ -117,6 +117,14 @@ const skemaPorosiLab = new Schema({
         enum: ['not_requested', 'pending', 'queued_to_flink', 'issued', 'failed'],
         default: 'not_requested',
       },
+      fiscalPrinted: {
+        type: Boolean,
+        default: false,
+      },
+      fiscalPrintedAt: {
+        type: Date,
+        default: null,
+      },
       jobId: {
         type: Schema.Types.ObjectId,
         ref: 'FiscalPrintJob',

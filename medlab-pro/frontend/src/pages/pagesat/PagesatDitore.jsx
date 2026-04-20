@@ -14,7 +14,7 @@ import FiscalPrintModal from '../../components/FiscalPrintModal';
 const FISCAL_STATUS_META = {
   not_requested: { label: 'Pa lëshuar', dot: 'bg-gray-200', title: 'Nuk është lëshuar ende' },
   pending: { label: 'Në pritje', dot: 'bg-amber-400', title: 'Job-i fiskal është në pritje' },
-  queued_to_flink: { label: 'Dërguar te F-Link', dot: 'bg-blue-500', title: 'Job-i fiskal është dërguar te F-Link' },
+  queued_to_flink: { label: 'I fiskalizuar', dot: 'bg-green-500', title: 'Kuponi është dërguar me sukses te F-Link' },
   issued: { label: 'Lëshuar', dot: 'bg-green-500', title: 'Kuponi është lëshuar fiskalisht' },
   failed: { label: 'Dështoi', dot: 'bg-red-500', title: 'Lëshimi fiskal ka dështuar' },
 };
@@ -22,8 +22,10 @@ const FISCAL_STATUS_META = {
 function getGroupFiscalState(group) {
   const fiscalStates = (group?.porosite || []).map((p) => p.pagesa?.fiskal || { status: 'not_requested' });
   const byStatus = (status) => fiscalStates.find((item) => item?.status === status);
+  const printed = fiscalStates.find((item) => item?.fiscalPrinted);
 
   if (byStatus('failed')) return byStatus('failed');
+  if (printed) return { ...printed, status: printed.status || 'queued_to_flink' };
   if (byStatus('queued_to_flink')) return byStatus('queued_to_flink');
   if (byStatus('pending')) return byStatus('pending');
   if (fiscalStates.length && fiscalStates.every((item) => item?.status === 'issued')) return fiscalStates[0];
@@ -311,14 +313,6 @@ export default function PagesatDitore() {
       })
       .map(p => ({ pacienti: p.pacienti, numrRendor: p.numrRendor, porosite: [p] }));
   }, [porosite, kerko, pacientiIdFilter]);
-
-  const leshuar = useMemo(() => {
-    return new Set(
-      grupuara
-        .filter((group) => getGroupFiscalState(group).status === 'issued')
-        .map((group) => (group.porosite || []).map((p) => p._id).sort().join('_'))
-    );
-  }, [grupuara]);
 
   const hapModal = group => {
     const papaguara = group.porosite.filter(p => p.pagesa?.statusi !== 'Paguar');
@@ -609,19 +603,36 @@ export default function PagesatDitore() {
               </div>
 
               <div className="flex-shrink-0 flex flex-col items-center gap-0.5">
-                <button
-                  onClick={() => allPaid && setFiskalGrupi(group)}
-                  title={allPaid ? 'Shiko kuponin fiskal' : 'Kryej pagesen fillimisht'}
-                  disabled={!allPaid}
-                  className={`p-1.5 rounded-lg border transition-colors ${
-                    allPaid
-                      ? 'border-green-200 text-green-600 hover:text-green-800 hover:bg-green-50 cursor-pointer'
-                      : 'border-gray-100 text-gray-300 cursor-not-allowed'
-                  }`}>
-                  <ReceiptText size={14}/>
-                </button>
-                <div title={leshuar.has(grupKey) ? 'Kuponi u lëshuar' : 'Nuk është lëshuar'}
-                  className={`w-2 h-2 rounded-full transition-colors ${leshuar.has(grupKey) ? 'bg-green-500' : 'bg-gray-200'}`}/>
+                {(() => {
+                  const fiscalState = getGroupFiscalState(group);
+                  const fiscalMeta = FISCAL_STATUS_META[fiscalState?.status] || FISCAL_STATUS_META.not_requested;
+                  const isFiscalLocked = fiscalState?.fiscalPrinted || ['queued_to_flink', 'issued'].includes(fiscalState?.status);
+                  return (
+                    <>
+                      <button
+                        onClick={() => allPaid && !isFiscalLocked && setFiskalGrupi(group)}
+                        title={
+                          !allPaid
+                            ? 'Kryej pagesen fillimisht'
+                            : isFiscalLocked
+                              ? 'Kuponi fiskal është lëshuar tashmë'
+                              : 'Lësho kuponin fiskal'
+                        }
+                        disabled={!allPaid || isFiscalLocked}
+                        className={`p-1.5 rounded-lg border transition-colors ${
+                          !allPaid
+                            ? 'border-gray-100 text-gray-300 cursor-not-allowed'
+                            : isFiscalLocked
+                              ? 'border-green-200 bg-green-50 text-green-600 cursor-not-allowed'
+                              : 'border-green-200 text-green-600 hover:text-green-800 hover:bg-green-50 cursor-pointer'
+                        }`}>
+                        <ReceiptText size={14}/>
+                      </button>
+                      <div title={fiscalMeta.title}
+                        className={`w-2 h-2 rounded-full transition-colors ${fiscalMeta.dot}`}/>
+                    </>
+                  );
+                })()}
               </div>
               <button
                 onClick={() => window.open(`/laboratori/fleta-punuese/${group.porosite[0]._id}`, '_blank')}

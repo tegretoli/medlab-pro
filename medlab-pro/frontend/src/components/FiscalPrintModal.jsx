@@ -46,7 +46,7 @@ export default function FiscalPrintModal({ grup, settings, fiscalState, onClose,
   }, [fiscalState]);
 
   useEffect(() => {
-    if (!jobId || !['pending', 'queued_to_flink'].includes(jobStatus)) return undefined;
+    if (!jobId || jobStatus !== 'pending') return undefined;
 
     let cancelled = false;
     let timer = null;
@@ -60,7 +60,7 @@ export default function FiscalPrintModal({ grup, settings, fiscalState, onClose,
         setJobStatus(nextJob.status || 'not_requested');
         setJobError(nextJob.result?.errorMessage || '');
 
-        if (['pending', 'queued_to_flink'].includes(nextJob.status)) {
+        if (nextJob.status === 'pending') {
           timer = setTimeout(poll, 2500);
           return;
         }
@@ -79,16 +79,17 @@ export default function FiscalPrintModal({ grup, settings, fiscalState, onClose,
   }, [jobId, jobStatus, onRefresh]);
 
   useEffect(() => {
-    if (!['issued', 'failed'].includes(jobStatus)) return;
+    if (!['queued_to_flink', 'issued', 'failed'].includes(jobStatus)) return;
     if (announcedRef.current === jobStatus) return;
 
     announcedRef.current = jobStatus;
+    if (jobStatus === 'queued_to_flink') toast.success('Kuponi fiskal u dërgua me sukses te F-Link');
     if (jobStatus === 'issued') toast.success('Kuponi fiskal u lëshua me sukses');
     if (jobStatus === 'failed') toast.error(jobError || 'Lëshimi fiskal dështoi');
   }, [jobStatus, jobError]);
 
   const handlePrint = async () => {
-    if (jobStatus === 'issued' || isSubmitting) return;
+    if (['queued_to_flink', 'issued'].includes(jobStatus) || isSubmitting) return;
 
     setIsSubmitting(true);
     try {
@@ -111,8 +112,9 @@ export default function FiscalPrintModal({ grup, settings, fiscalState, onClose,
     }
   };
 
-  const isIssued = jobStatus === 'issued';
+  const isIssued = ['queued_to_flink', 'issued'].includes(jobStatus);
   const isInFlight = ['pending', 'queued_to_flink'].includes(jobStatus);
+  const isLocked = ['queued_to_flink', 'issued'].includes(jobStatus);
 
   return (
     <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
@@ -130,6 +132,11 @@ export default function FiscalPrintModal({ grup, settings, fiscalState, onClose,
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"><X size={15} /></button>
         </div>
 
+        {jobStatus === 'queued_to_flink' && (
+          <div className="mx-4 mt-3 px-3 py-2.5 rounded-xl bg-green-50 border border-green-200 text-xs text-green-700">
+            Kuponi u dërgua me sukses te F-Link dhe nuk mund të printohet përsëri.
+          </div>
+        )}
         {jobStatus === 'issued' && (
           <div className="mx-4 mt-3 px-3 py-2.5 rounded-xl bg-green-50 border border-green-200 text-xs text-green-700">
             Kuponi u lëshua me sukses{fiscalState?.receiptNumber ? ` · Nr. ${fiscalState.receiptNumber}` : ''}.
@@ -138,11 +145,6 @@ export default function FiscalPrintModal({ grup, settings, fiscalState, onClose,
         {jobStatus === 'pending' && (
           <div className="mx-4 mt-3 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700">
             Job-i fiskal është krijuar dhe po pret bridge-in lokal.
-          </div>
-        )}
-        {jobStatus === 'queued_to_flink' && (
-          <div className="mx-4 mt-3 px-3 py-2.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-700">
-            Kërkesa u dërgua te F-Link. Po presim konfirmimin nga pajisja fiskale.
           </div>
         )}
         {jobStatus === 'failed' && (
@@ -211,15 +213,15 @@ export default function FiscalPrintModal({ grup, settings, fiscalState, onClose,
 
         <div className="px-4 py-3 border-t flex gap-2 flex-shrink-0">
           <button onClick={onClose} className="btn-ghost flex-1 text-sm">Mbyll</button>
-          {isIssued ? (
+          {isLocked ? (
             <div className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gray-100 text-gray-400 text-sm font-medium cursor-not-allowed border border-gray-200">
               <CheckCircle size={14} className="text-green-500" />
-              Lëshuar
+              Fiskalizuar
             </div>
           ) : (
             <button
               onClick={handlePrint}
-              disabled={isSubmitting || isInFlight}
+              disabled={isSubmitting || isInFlight || isLocked}
               className="flex-1 text-sm flex items-center justify-center gap-2 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {(isSubmitting || isInFlight) ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />}

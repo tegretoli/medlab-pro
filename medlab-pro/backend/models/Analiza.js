@@ -5,6 +5,8 @@ const { Schema } = mongoose;
 const skemaAnaliza = new Schema({
   kodi:         { type: String, unique: true, required: true, uppercase: true },
   emri:         { type: String, required: true, trim: true },
+  fiskalArticleId: { type: Number, default: null },
+  fiskalArticleName: { type: String, default: '' },
   emriAnglisht: String,
   departamenti: {
     type: String,

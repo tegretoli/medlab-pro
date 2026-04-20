@@ -24,16 +24,28 @@ const formatQty = (value) => {
   return qty.toFixed(3);
 };
 
+const hashToFiscalArticleId = (input) => {
+  const text = String(input || '').trim().toUpperCase();
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = ((hash * 31) + text.charCodeAt(i)) % 900000;
+  }
+  return hash + 1000;
+};
+
 const buildFLinkSaleLine = (item, index) => {
   const itemName = sanitizeField(item.name || `ITEM ${index}`);
   const itemPrice = formatPrice(item.unitPrice ?? item.lineTotal ?? 0);
   const qty = formatQty(item.qty ?? 1);
+  const fiscalArticleId = Number(item.fiscalArticleId) || hashToFiscalArticleId(itemName);
 
   if (!itemName) {
     throw new Error(`Fiscal item ${index} has an empty name`);
   }
 
-  return `S,1,______,_,__;${itemName};${itemPrice};${qty};1;1;1;0;${index};`;
+  // The last numeric field is treated by the device as the fiscal article/PLU code,
+  // not as a transient line index. It must stay stable per service.
+  return `S,1,______,_,__;${itemName};${itemPrice};${qty};1;1;1;0;${fiscalArticleId};`;
 };
 
 /**

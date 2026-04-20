@@ -23,6 +23,8 @@ const kerkoBridgeSecret = (req, res) => {
 
 const krijoFiscalSnapshot = (status, job, extras = {}) => ({
   status,
+  fiscalPrinted: extras.fiscalPrinted ?? ['queued_to_flink', 'issued'].includes(status),
+  fiscalPrintedAt: extras.fiscalPrintedAt || (['queued_to_flink', 'issued'].includes(status) ? new Date() : null),
   jobId: job?._id || null,
   receiptNumber: extras.receiptNumber || '',
   fiscalNumber: extras.fiscalNumber || '',
@@ -315,9 +317,9 @@ const krijoFiscalJob = asyncHandler(async (req, res) => {
     throw new Error('Vetem porosite e paguara mund te dergohen per printim fiskal');
   }
 
-  if (porosite.some((porosi) => porosi.pagesa?.fiskal?.status === 'issued')) {
+  if (porosite.some((porosi) => porosi.pagesa?.fiskal?.fiscalPrinted || ['queued_to_flink', 'issued'].includes(porosi.pagesa?.fiskal?.status))) {
     res.status(409);
-    throw new Error('Te paktën nje porosi eshte leshuar tashme fiskalisht');
+    throw new Error('Te paktën nje porosi eshte fiskalizuar tashme dhe nuk mund te printohet perseri');
   }
 
   const patientIds = new Set(porosite.map((porosi) => String(porosi.pacienti?._id || '')));
@@ -422,7 +424,11 @@ const bridgeQueueFiscalJob = asyncHandler(async (req, res) => {
   job.bridge.lastHeartbeatAt = new Date();
   await job.save();
 
-  await perditesoPorositeFiskale(job.orderIds, 'queued_to_flink', job, { requestedAt: job.requestedAt });
+  await perditesoPorositeFiskale(job.orderIds, 'queued_to_flink', job, {
+    requestedAt: job.requestedAt,
+    fiscalPrinted: true,
+    fiscalPrintedAt: job.bridge.queuedAt,
+  });
 
   res.json({ sukses: true, job });
 });
@@ -475,6 +481,8 @@ const bridgeCompleteFiscalJob = asyncHandler(async (req, res) => {
     await perditesoPorositeFiskale(job.orderIds, 'issued', job, {
       requestedAt: job.requestedAt,
       issuedAt: job.result.issuedAt,
+      fiscalPrinted: true,
+      fiscalPrintedAt: job.result.issuedAt || new Date(),
       receiptNumber,
       fiscalNumber,
     });
