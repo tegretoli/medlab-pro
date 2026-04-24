@@ -46,6 +46,8 @@ const skemaAnaliza = new Schema({
       gjinia:     { type: String, enum: ['M', 'F', 'Te dyja'], default: 'Te dyja' },
       moshaMin:   { type: Number, default: 0 },
       moshaMax:   { type: Number, default: 120 },
+      // njesia e moshes per kete interval (Dite/Muaj/Vjet) — per saktesi neonatale/pediatrike
+      moshaJedesi: { type: String, enum: ['Dite', 'Muaj', 'Vjet'], default: 'Vjet' },
       operatori:  { type: String, enum: ['midis', 'me_pak', 'me_pak_baraz', 'me_shum_baraz', 'me_shum', 'tekst'] },
       vleraMin:   Number,
       vleraMax:   Number,

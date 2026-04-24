@@ -26,7 +26,7 @@ const FORMA_ZBRAZET = {
 };
 
 const KOMP_BOSH  = { emri: '', njesia: '', kritikMin: '', kritikMax: '', vlerat: [] };
-const VLERA_BOSH = { etiketa: '', operatori: 'midis', vleraMin: '', vleraMax: '', vleraTekst: '', komentAuto: '' };
+const VLERA_BOSH = { etiketa: '', gjinia: 'Te dyja', moshaMin: '', moshaMax: '', moshaJedesi: 'Vjet', operatori: 'midis', vleraMin: '', vleraMax: '', vleraTekst: '', komentAuto: '' };
 const VLERA_PCR_BOSH = { etiketa: '', operatori: 'tekst', vleraMin: '', vleraMax: '', vleraTekst: '', komentAuto: '' };
 
 const operatorSimbol = (op) => {
@@ -76,7 +76,7 @@ export default function KatalogAnalizave() {
           ...KOMP_BOSH, ...k,
           kritikMin: k.kritikMin ?? '',
           kritikMax: k.kritikMax ?? '',
-          vlerat:    (k.vlerat || []).map(vl => ({ ...VLERA_BOSH, ...vl, komentAuto: vl.komentAuto || '' })),
+          vlerat:    (k.vlerat || []).map(vl => ({ ...VLERA_BOSH, ...vl, moshaJedesi: vl.moshaJedesi || 'Vjet', komentAuto: vl.komentAuto || '' })),
         })),
         shenime:           analiza.shenime || '',
       });
@@ -392,41 +392,68 @@ export default function KatalogAnalizave() {
                                   </div>
                                 </div>
                               ) : (
-                                /* ── Biokimi: etiketa, operatori, vlerat ── */
-                                <>
-                                  <input className="input text-xs w-24" value={vl.etiketa || ''}
-                                    onChange={e => setKompVlera(i, vi, 'etiketa', e.target.value)} placeholder="Etiketa" />
-                                  <select className="input text-xs w-32" value={vl.operatori || 'midis'}
-                                    onChange={e => setKompVlera(i, vi, 'operatori', e.target.value)}>
-                                    <option value="midis">midis</option>
-                                    <option value="me_pak">&lt;</option>
-                                    <option value="me_pak_baraz">≤</option>
-                                    <option value="me_shum_baraz">≥</option>
-                                    <option value="me_shum">&gt;</option>
-                                    <option value="tekst">tekst</option>
-                                  </select>
-                                  {(!vl.operatori || vl.operatori === 'midis') ? (
-                                    <>
-                                      <input type="number" className="input text-xs w-20" value={vl.vleraMin || ''}
-                                        onChange={e => setKompVlera(i, vi, 'vleraMin', e.target.value)} placeholder="Nga" />
-                                      <span className="text-gray-400 text-xs">·</span>
-                                      <input type="number" className="input text-xs w-20" value={vl.vleraMax || ''}
-                                        onChange={e => setKompVlera(i, vi, 'vleraMax', e.target.value)} placeholder="Deri" />
-                                    </>
-                                  ) : vl.operatori === 'tekst' ? (
-                                    <input className="input text-xs w-28" value={vl.vleraTekst || ''}
-                                      onChange={e => setKompVlera(i, vi, 'vleraTekst', e.target.value)} placeholder="Tekst" />
-                                  ) : (
-                                    <>
-                                      <span className="text-xs font-semibold text-gray-400 w-4 flex-shrink-0">
-                                        {operatorSimbol(vl.operatori)}
-                                      </span>
-                                      <input type="number" className="input text-xs w-20" value={vl.vleraMin || ''}
-                                        onChange={e => setKompVlera(i, vi, 'vleraMin', e.target.value)} placeholder="Vlera" />
-                                    </>
-                                  )}
-                                  <button onClick={() => hiqKompVlera(i, vi)} className="text-gray-300 hover:text-red-400 flex-shrink-0"><X size={10} /></button>
-                                </>
+                                /* ── Biokimi: etiketa, gjinia, mosha+jedesi, operatori, vlerat ── */
+                                <div className="flex-1 space-y-1">
+                                  {/* Rreshti 1: etiketa + gjinia + mosha nga–deri + njesia */}
+                                  <div className="flex gap-1.5 items-center flex-wrap">
+                                    <input className="input text-xs w-24" value={vl.etiketa || ''}
+                                      onChange={e => setKompVlera(i, vi, 'etiketa', e.target.value)} placeholder="Etiketa" />
+                                    {/* Gjinia */}
+                                    <select className="input text-xs w-20" value={vl.gjinia || 'Te dyja'}
+                                      onChange={e => setKompVlera(i, vi, 'gjinia', e.target.value)}>
+                                      <option value="Te dyja">Të dyja</option>
+                                      <option value="M">Mashkull</option>
+                                      <option value="F">Femër</option>
+                                    </select>
+                                    {/* Mosha nga → deri */}
+                                    <input type="number" min="0" className="input text-xs w-14" value={vl.moshaMin ?? ''}
+                                      onChange={e => setKompVlera(i, vi, 'moshaMin', e.target.value)} placeholder="Nga" />
+                                    <span className="text-gray-400 text-xs">–</span>
+                                    <input type="number" min="0" className="input text-xs w-14" value={vl.moshaMax ?? ''}
+                                      onChange={e => setKompVlera(i, vi, 'moshaMax', e.target.value)} placeholder="Deri" />
+                                    {/* Njesia e moshes — kritike per neonatale */}
+                                    <select className="input text-xs w-20" value={vl.moshaJedesi || 'Vjet'}
+                                      onChange={e => setKompVlera(i, vi, 'moshaJedesi', e.target.value)}
+                                      title="Njësia e moshës">
+                                      <option value="Dite">Ditë</option>
+                                      <option value="Muaj">Muaj</option>
+                                      <option value="Vjet">Vjet</option>
+                                    </select>
+                                  </div>
+                                  {/* Rreshti 2: operatori + vlerat referente */}
+                                  <div className="flex gap-1.5 items-center">
+                                    <select className="input text-xs w-28" value={vl.operatori || 'midis'}
+                                      onChange={e => setKompVlera(i, vi, 'operatori', e.target.value)}>
+                                      <option value="midis">midis</option>
+                                      <option value="me_pak">&lt;</option>
+                                      <option value="me_pak_baraz">≤</option>
+                                      <option value="me_shum_baraz">≥</option>
+                                      <option value="me_shum">&gt;</option>
+                                      <option value="tekst">tekst</option>
+                                    </select>
+                                    {(!vl.operatori || vl.operatori === 'midis') ? (
+                                      <>
+                                        <input type="number" className="input text-xs w-20" value={vl.vleraMin || ''}
+                                          onChange={e => setKompVlera(i, vi, 'vleraMin', e.target.value)} placeholder="Min" />
+                                        <span className="text-gray-400 text-xs">·</span>
+                                        <input type="number" className="input text-xs w-20" value={vl.vleraMax || ''}
+                                          onChange={e => setKompVlera(i, vi, 'vleraMax', e.target.value)} placeholder="Max" />
+                                      </>
+                                    ) : vl.operatori === 'tekst' ? (
+                                      <input className="input text-xs w-28" value={vl.vleraTekst || ''}
+                                        onChange={e => setKompVlera(i, vi, 'vleraTekst', e.target.value)} placeholder="Tekst" />
+                                    ) : (
+                                      <>
+                                        <span className="text-xs font-semibold text-gray-400 w-4 flex-shrink-0">
+                                          {operatorSimbol(vl.operatori)}
+                                        </span>
+                                        <input type="number" className="input text-xs w-20" value={vl.vleraMin || ''}
+                                          onChange={e => setKompVlera(i, vi, 'vleraMin', e.target.value)} placeholder="Vlera" />
+                                      </>
+                                    )}
+                                    <button onClick={() => hiqKompVlera(i, vi)} className="text-gray-300 hover:text-red-400 ml-auto flex-shrink-0"><X size={10} /></button>
+                                  </div>
+                                </div>
                               )}
                             </div>
                           ))}

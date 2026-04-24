@@ -61,14 +61,41 @@ function fmtVleraRef(ref) {
   }
 }
 
+// ─── Konverto moshen e pacientit (ne vjet) ne njesin e kerkuar ───────────────
+// datelindja: Date|string|null; jedesi: 'Dite'|'Muaj'|'Vjet'
+// Kthen moshen ne ate njesi, ose null nese datelindja mungon
+function moshaNeSipasJedesit(datelindja, jedesi) {
+  if (!datelindja) return null;
+  const sot = new Date();
+  const lindja = new Date(datelindja);
+  const diteDiff = Math.floor((sot - lindja) / 86400000); // 1000*60*60*24
+  if (jedesi === 'Dite')  return diteDiff;
+  if (jedesi === 'Muaj')  return Math.floor(diteDiff / 30.4375);
+  return Math.floor(diteDiff / 365.25); // Vjet (default)
+}
+
 // ─── Filtron vlerat referente sipas gjinise dhe moshes se pacientit ───────────
-function filtroVlerat(vlerat, gjinia, mosha) {
+// Mbeshtet moshaJedesi per saktesi neonatale/pediatrike (Dite/Muaj/Vjet)
+// Backward compatible: nese moshaJedesi mungon perdor 'Vjet' dhe moshaVjet
+function filtroVlerat(vlerat, gjinia, moshaVjet, datelindja) {
   if (!vlerat || vlerat.length === 0) return [];
   const matched = vlerat.filter(vl => {
     const gjiniaOk = !vl.gjinia || vl.gjinia === 'Te dyja' || vl.gjinia === gjinia;
-    const moshaOk  = mosha == null
-      || (mosha >= (vl.moshaMin ?? 0) && mosha <= (vl.moshaMax ?? 120));
-    return gjiniaOk && moshaOk;
+    if (!gjiniaOk) return false;
+
+    // Llogarit moshen ne njeside e kerkuar nga intervali
+    const jedesi = vl.moshaJedesi || 'Vjet';
+    let moshaEKonvertuar;
+    if (jedesi === 'Vjet' || !datelindja) {
+      // Backward compatible: perdor moshaVjet (virtual ekzistues)
+      moshaEKonvertuar = moshaVjet;
+    } else {
+      moshaEKonvertuar = moshaNeSipasJedesit(datelindja, jedesi);
+    }
+
+    const moshaOk = moshaEKonvertuar == null
+      || (moshaEKonvertuar >= (vl.moshaMin ?? 0) && moshaEKonvertuar <= (vl.moshaMax ?? 999));
+    return moshaOk;
   });
   return matched.length > 0 ? matched : vlerat; // fallback: shfaq te gjitha nese asnje nuk perputhet
 }
@@ -459,8 +486,8 @@ async function gjeneroRaportPDF(porosi, settings = {}) {
     // ── Page layout ─────────────────────────────────────────────
     const nenshkrimet  = nenshkrimetMeBuffer;
     const hasPhotos    = nenshkrimet.some(n => n._fotoBuf);
-    const SIG_AREA_H   = nenshkrimet.length > 0 ? (hasPhotos ? 95 : 52) : 30;
-    const SIG_Y  = PH - SIG_AREA_H - 38;
+    const SIG_AREA_H   = nenshkrimet.length > 0 ? (hasPhotos ? 135 : 58) : 30;
+    const SIG_Y  = PH - SIG_AREA_H - 55;
     const FOOT_Y = PH - 30;
     const CBW    = SIG_Y - 8;  // kufiri i poshtem i permbajtjes
 
@@ -489,28 +516,28 @@ async function gjeneroRaportPDF(porosi, settings = {}) {
 
           // Emri Mbiemri
           const emriPlote = `${sig.emri} ${sig.mbiemri}`.trim();
-          doc.fillColor(C.text).font('Helvetica-Bold').fontSize(7.5)
+          doc.fillColor(C.text).font('Helvetica-Bold').fontSize(9.5)
              .text(emriPlote, sX, SIG_Y + 5, { width: sW, align: txtAlign, lineBreak: false });
 
           // Titulli
-          let nextRowY = SIG_Y + 16;
+          let nextRowY = SIG_Y + 19;
           if (sig.titulli) {
-            doc.fillColor(C.gray).font('Helvetica-Oblique').fontSize(6.5)
+            doc.fillColor(C.gray).font('Helvetica-Oblique').fontSize(8.5)
                .text(sig.titulli, sX, nextRowY, { width: sW, align: txtAlign, lineBreak: false });
-            nextRowY += 11;
+            nextRowY += 13;
           }
           // Licenca (opsionale)
           if (sig.licenca) {
-            doc.fillColor(C.gray).font('Helvetica').fontSize(6)
+            doc.fillColor(C.gray).font('Helvetica').fontSize(7.5)
                .text(sig.licenca, sX, nextRowY, { width: sW, align: txtAlign, lineBreak: false });
-            nextRowY += 9;
+            nextRowY += 11;
           }
 
           // Vula/Foto — posht emrit dhe titullit
           if (sig._fotoBuf) {
             try {
-              const fW      = Math.min(sW - 4, 90);
-              const fH      = 45;
+              const fW      = Math.min(sW - 4, 130); // madhesi e rritur
+              const fH      = 65;                    // lartesi e rritur
               const imgX    = sig.align === 'right' ? sX + sW - fW : sX;
               doc.image(sig._fotoBuf, imgX, nextRowY, { fit: [fW, fH], align: txtAlign, valign: 'top' });
               nextRowY += fH + 2;
@@ -519,7 +546,7 @@ async function gjeneroRaportPDF(porosi, settings = {}) {
 
           // Validim tipi
           const vLabel = sig.validimTipi === 'mjekesor' ? 'Validim Mjekësor' : 'Validim Teknik';
-          doc.fillColor(C.gray).font('Helvetica').fontSize(6)
+          doc.fillColor(C.gray).font('Helvetica').fontSize(7.5)
              .text(vLabel, sX, nextRowY, { width: sW, align: txtAlign, lineBreak: false });
         });
       }
@@ -1086,7 +1113,7 @@ async function gjeneroRaportPDF(porosi, settings = {}) {
           rezultate.forEach(r => {
             const kompData       = refKomponentet.find(k => k.emri === r.komponenti)
               || (refKomponentet.length === 1 ? refKomponentet[0] : null);
-            const teGjithaVlerat = filtroVlerat(kompData?.vlerat || [], pac.gjinia, moshaNum);
+            const teGjithaVlerat = filtroVlerat(kompData?.vlerat || [], pac.gjinia, moshaNum, pac.datelindja);
             const vlera0         = teGjithaVlerat[0] || null;
             const extraVlerat    = teGjithaVlerat.slice(1);
 

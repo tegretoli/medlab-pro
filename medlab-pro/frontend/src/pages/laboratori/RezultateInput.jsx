@@ -42,11 +42,35 @@ const flamurInfo = {
 // Renditet nga me kritiket tek me normale
 const FLAMUR_RANK = { Shume_Larte: 5, Larte: 4, Shume_Ulet: 3, Ulet: 2, Normal: 1, '—': 0 };
 
+// Konverton datelindja → moshe ne njesin e kerkuar (Dite/Muaj/Vjet)
+const moshaNgaJedesi = (datelindja, jedesi) => {
+  if (!datelindja) return null;
+  const diteDiff = Math.floor((Date.now() - new Date(datelindja)) / 86400000);
+  if (jedesi === 'Dite')  return diteDiff;
+  if (jedesi === 'Muaj')  return Math.floor(diteDiff / 30.4375);
+  return Math.floor(diteDiff / 365.25); // Vjet
+};
+
 // Llogarit live nga vlerat e inputit
 // Zinxhiri: kritikMin/Max komponent → kritikMin/Max interval → vleraMin/Max interval (fallback final)
-const worstFlamuriLive = (row, vlerat, pacGjinia, pacMosha) => {
+// Mbeshtet moshaJedesi (Dite/Muaj/Vjet) per saktesi neonatale/pediatrike
+const worstFlamuriLive = (row, vlerat, pacGjinia, pacMosha, pacDatelindja) => {
   const refs = row.analiza?.komponente || [];
   let worst = '—';
+
+  // Helper: kontrollon nese intervali i pershtatet moshes se pacientit
+  const moshaMatchVl = (vl) => {
+    const jedesi = vl.moshaJedesi || 'Vjet';
+    let moshaKon;
+    if (jedesi === 'Vjet' || !pacDatelindja) {
+      moshaKon = pacMosha;
+    } else {
+      moshaKon = moshaNgaJedesi(pacDatelindja, jedesi);
+    }
+    if (moshaKon == null) return true;
+    return moshaKon >= (vl.moshaMin ?? 0) && moshaKon <= (vl.moshaMax ?? 999);
+  };
+
   for (const ref of refs) {
     const key    = ref.emri || 'vlera';
     const val    = vlerat[String(row._id)]?.[key];
@@ -58,10 +82,9 @@ const worstFlamuriLive = (row, vlerat, pacGjinia, pacMosha) => {
     let kMax = ref.kritikMax != null ? Number(ref.kritikMax) : null;
 
     if (kMin == null || kMax == null) {
-      // Fallback 1: interval me kritikMin/kritikMax qe i pershtatet pacientit
+      // Fallback 1: interval me kritikMin/kritikMax qe i pershtatet pacientit (me moshaJedesi)
       const gjM = g => !g || g === 'Te dyja' || g === pacGjinia;
-      const mM  = vl => pacMosha >= (vl.moshaMin ?? 0) && pacMosha <= (vl.moshaMax ?? 120);
-      const vl1 = (ref.vlerat || []).find(v => gjM(v.gjinia) && mM(v) && v.kritikMin != null && v.kritikMax != null)
+      const vl1 = (ref.vlerat || []).find(v => gjM(v.gjinia) && moshaMatchVl(v) && v.kritikMin != null && v.kritikMax != null)
                || (ref.vlerat || []).find(v => v.kritikMin != null && v.kritikMax != null);
       if (vl1) { kMin = Number(vl1.kritikMin); kMax = Number(vl1.kritikMax); }
     }
@@ -69,8 +92,7 @@ const worstFlamuriLive = (row, vlerat, pacGjinia, pacMosha) => {
     if (kMin == null || kMax == null) {
       // Fallback 2: vleraMin/vleraMax nga intervali qe i pershtatet (diapazoni normal)
       const gjM = g => !g || g === 'Te dyja' || g === pacGjinia;
-      const mM  = vl => pacMosha >= (vl.moshaMin ?? 0) && pacMosha <= (vl.moshaMax ?? 120);
-      const vl2 = (ref.vlerat || []).find(v => gjM(v.gjinia) && mM(v) && v.operatori === 'midis' && v.vleraMin != null && v.vleraMax != null)
+      const vl2 = (ref.vlerat || []).find(v => gjM(v.gjinia) && moshaMatchVl(v) && v.operatori === 'midis' && v.vleraMin != null && v.vleraMax != null)
                || (ref.vlerat || []).find(v => v.operatori === 'midis' && v.vleraMin != null && v.vleraMax != null);
       if (vl2) { kMin = Number(vl2.vleraMin); kMax = Number(vl2.vleraMax); }
     }
@@ -558,8 +580,8 @@ export default function RezultateInput() {
                   <div className="flex items-center gap-2">
                     {/* Flamuri live — llogaritet nga vlerat e inputit, kritikMin/kritikMax */}
                     {(() => {
-                      const pacMosha = pac?.datelindja ? new Date().getFullYear() - new Date(pac.datelindja).getFullYear() : 30;
-                      const wf = worstFlamuriLive(row, vlerat, pac?.gjinia, pacMosha);
+                      const pacMosha = pac?.datelindja ? Math.floor((Date.now() - new Date(pac.datelindja)) / 31557600000) : 30;
+                      const wf = worstFlamuriLive(row, vlerat, pac?.gjinia, pacMosha, pac?.datelindja);
                       const badge = flamurBadge[wf];
                       return badge ? (
                         <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${badge.cls}`}>

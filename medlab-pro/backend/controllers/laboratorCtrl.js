@@ -316,8 +316,18 @@ const regjistroRezultatet = asyncHandler(async (req, res) => {
     .populate('analizat.analiza', 'emri kodi departamenti komponente');
   if (!porosi) { res.status(404); throw new Error('Porosi nuk u gjet'); }
 
-  const moshaP  = porosi.pacienti.mosha;
-  const gjiniaP = porosi.pacienti.gjinia;
+  const moshaP      = porosi.pacienti.mosha;       // mosha ne vjet (virtual)
+  const gjiniaP     = porosi.pacienti.gjinia;
+  const datelindjaP = porosi.pacienti.datelindja;  // per konvertim ne Dite/Muaj
+
+  // Konverton moshen e pacientit ne njesin e intervalit (Dite/Muaj/Vjet)
+  const moshaNeSipasJedesit = (jedesi) => {
+    if (!datelindjaP) return moshaP; // fallback ne vjet
+    const diteDiff = Math.floor((Date.now() - new Date(datelindjaP)) / 86400000);
+    if (jedesi === 'Dite')  return diteDiff;
+    if (jedesi === 'Muaj')  return Math.floor(diteDiff / 30.4375);
+    return moshaP; // Vjet
+  };
 
   const row = porosi.analizat.find(a => a.analiza._id.toString() === analizaId);
   if (!row) { res.status(404); throw new Error('Analiza nuk eshte ne kete porosi'); }
@@ -331,17 +341,18 @@ const regjistroRezultatet = asyncHandler(async (req, res) => {
       kritikMin: k.kritikMin ?? undefined,
       kritikMax: k.kritikMax ?? undefined,
       vlerat: (k.vlerat || []).map(vl => ({
-        etiketa:    vl.etiketa    || '',
-        gjinia:     vl.gjinia     || 'Te dyja',
-        moshaMin:   vl.moshaMin   ?? 0,
-        moshaMax:   vl.moshaMax   ?? 120,
-        operatori:  vl.operatori  || 'midis',
-        vleraMin:   vl.vleraMin   ?? undefined,
-        vleraMax:   vl.vleraMax   ?? undefined,
-        vleraTekst: vl.vleraTekst || '',
-        komentAuto: vl.komentAuto || '',
-        kritikMin:  vl.kritikMin  ?? undefined,
-        kritikMax:  vl.kritikMax  ?? undefined,
+        etiketa:     vl.etiketa     || '',
+        gjinia:      vl.gjinia      || 'Te dyja',
+        moshaMin:    vl.moshaMin    ?? 0,
+        moshaMax:    vl.moshaMax    ?? 120,
+        moshaJedesi: vl.moshaJedesi || 'Vjet', // njesia e moshes (Dite/Muaj/Vjet)
+        operatori:   vl.operatori   || 'midis',
+        vleraMin:    vl.vleraMin    ?? undefined,
+        vleraMax:    vl.vleraMax    ?? undefined,
+        vleraTekst:  vl.vleraTekst  || '',
+        komentAuto:  vl.komentAuto  || '',
+        kritikMin:   vl.kritikMin   ?? undefined,
+        kritikMax:   vl.kritikMax   ?? undefined,
       })),
     }));
   }
@@ -367,8 +378,14 @@ const regjistroRezultatet = asyncHandler(async (req, res) => {
       vMax = Number(komp.kritikMax);
     } else {
       // Fallback: gjej intervalin qe perputhet me gjinine + moshen e pacientit
+      // Mbeshtet moshaJedesi (Dite/Muaj/Vjet) per saktesi neonatale/pediatrike
       const gjiniaMatch = g => !g || g === 'Te dyja' || g === gjiniaP;
-      const moshaMatch  = vl => moshaP >= (vl.moshaMin ?? 0) && moshaP <= (vl.moshaMax ?? 120);
+      const moshaMatch  = vl => {
+        const jedesi   = vl.moshaJedesi || 'Vjet';
+        const moshaKon = moshaNeSipasJedesit(jedesi);
+        if (moshaKon == null) return true;
+        return moshaKon >= (vl.moshaMin ?? 0) && moshaKon <= (vl.moshaMax ?? 999);
+      };
       const vlMatch = (komp?.vlerat || []).find(vl =>
         gjiniaMatch(vl.gjinia) && moshaMatch(vl) &&
         vl.kritikMin != null && vl.kritikMax != null
