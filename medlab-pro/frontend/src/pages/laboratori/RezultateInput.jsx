@@ -51,6 +51,25 @@ const moshaNgaJedesi = (datelindja, jedesi) => {
   return Math.floor(diteDiff / 365.25); // Vjet
 };
 
+// Filtron vlerat referente sipas gjinise + moshes (me njesi Dite/Muaj/Vjet)
+// Backward compatible: nese moshaJedesi mungon, default 'Vjet'
+const filtroVleratPac = (vlerat, gjinia, datelindja) => {
+  if (!vlerat || vlerat.length === 0) return [];
+  const gjiniaOk = g => !g || g === 'Te dyja' || g === gjinia;
+  const moshaOk  = vl => {
+    const jedesi = vl.moshaJedesi || 'Vjet';
+    const mosha  = moshaNgaJedesi(datelindja, jedesi);
+    if (mosha == null) return true;
+    return mosha >= (vl.moshaMin ?? 0) && mosha <= (vl.moshaMax ?? 999);
+  };
+  const matched = vlerat.filter(vl => gjiniaOk(vl.gjinia) && moshaOk(vl));
+  return matched.length > 0 ? matched : vlerat; // fallback: te gjitha nese asnje nuk perputhet
+};
+
+// Etiketa e njesis se moshes per shfaqje
+const njesiMoshaLabel = (jedesi) =>
+  jedesi === 'Dite' ? 'ditë' : jedesi === 'Muaj' ? 'muaj' : 'vj.';
+
 // Llogarit live nga vlerat e inputit
 // Zinxhiri: kritikMin/Max komponent → kritikMin/Max interval → vleraMin/Max interval (fallback final)
 // Mbeshtet moshaJedesi (Dite/Muaj/Vjet) per saktesi neonatale/pediatrike
@@ -674,23 +693,48 @@ export default function RezultateInput() {
                                 placeholder={isTekst ? 'Vlera...' : '0.00'}
                                 disabled={kompletuar && !modoEdit}/>
                             )}
-                            {!isTekst && <span className="text-gray-400 text-sm pt-1">{ref.njesia}</span>}
+                            {!isTekst && ref.njesia && <span className="text-gray-400 text-sm pt-1">{ref.njesia}</span>}
                           </div>
                         </div>
-                        {!isTekst && (
-                          <div className="text-right min-w-36 flex-shrink-0">
-                            <p className="text-xs text-gray-400 mb-1">Referenca normale</p>
-                            <p className="text-sm font-mono text-gray-600">{kompRefTekst(ref)}</p>
-                            {(ref.vlerat || []).map((vl, vi) => (
-                              <p key={vi} className="text-xs text-gray-400 font-mono">{vl.etiketa ? `${vl.etiketa}: ` : ''}{kompRefTekst(vl)}</p>
-                            ))}
-                            {flamuri !== '—' && (
-                              <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full border ${flamurInfo[flamuri]?.cls}`}>
-                                {flamurInfo[flamuri]?.label}
-                              </span>
-                            )}
-                          </div>
-                        )}
+                        {!isTekst && (() => {
+                          // Filtro intervalet sipas gjinise + moshes/njesia se pacientit
+                          const vleratFiltruara = filtroVleratPac(ref.vlerat || [], pac?.gjinia, pac?.datelindja);
+                          const vlera0 = vleratFiltruara[0] || null;
+                          return (
+                            <div className="text-right min-w-40 flex-shrink-0">
+                              <p className="text-xs text-gray-400 mb-1">Referenca normale</p>
+                              {/* Vlera kryesore nga intervali i filtruar */}
+                              {vlera0 ? (
+                                <p className="text-sm font-mono text-gray-700 font-semibold">
+                                  {vlera0.etiketa ? <span className="text-gray-400 text-xs mr-1">{vlera0.etiketa}:</span> : null}
+                                  {kompRefTekst(vlera0)}
+                                  {ref.njesia ? <span className="text-xs text-gray-400 ml-1">{ref.njesia}</span> : null}
+                                </p>
+                              ) : (
+                                <p className="text-sm text-gray-400 font-mono">—</p>
+                              )}
+                              {/* Intervalet shtese te filtruara */}
+                              {vleratFiltruara.slice(1).map((vl, vi) => (
+                                <p key={vi} className="text-xs text-gray-400 font-mono">
+                                  {vl.etiketa ? <span className="font-medium">{vl.etiketa}: </span> : null}
+                                  {kompRefTekst(vl)}
+                                </p>
+                              ))}
+                              {/* Trego moshen/njesian e intervalit aktiv */}
+                              {vlera0 && (vlera0.moshaMin != null || vlera0.moshaMax != null) && (
+                                <p className="text-xs text-blue-400 mt-0.5">
+                                  {vlera0.moshaMin ?? 0}–{vlera0.moshaMax ?? '∞'} {njesiMoshaLabel(vlera0.moshaJedesi)}
+                                  {vlera0.gjinia && vlera0.gjinia !== 'Te dyja' ? ` · ${vlera0.gjinia === 'M' ? 'M' : 'F'}` : ''}
+                                </p>
+                              )}
+                              {flamuri !== '—' && (
+                                <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full border ${flamurInfo[flamuri]?.cls}`}>
+                                  {flamurInfo[flamuri]?.label}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                       {/* Koment per komponent */}
                       {(!kompletuar || modoEdit) && (

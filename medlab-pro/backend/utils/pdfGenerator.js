@@ -486,8 +486,8 @@ async function gjeneroRaportPDF(porosi, settings = {}) {
     // ── Page layout ─────────────────────────────────────────────
     const nenshkrimet  = nenshkrimetMeBuffer;
     const hasPhotos    = nenshkrimet.some(n => n._fotoBuf);
-    const SIG_AREA_H   = nenshkrimet.length > 0 ? (hasPhotos ? 135 : 58) : 30;
-    const SIG_Y  = PH - SIG_AREA_H - 55;
+    const SIG_AREA_H   = nenshkrimet.length > 0 ? (hasPhotos ? 112 : 52) : 30;
+    const SIG_Y  = PH - SIG_AREA_H - 42;
     const FOOT_Y = PH - 30;
     const CBW    = SIG_Y - 8;  // kufiri i poshtem i permbajtjes
 
