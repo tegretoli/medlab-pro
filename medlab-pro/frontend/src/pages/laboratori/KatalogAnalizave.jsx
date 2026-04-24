@@ -393,32 +393,49 @@ export default function KatalogAnalizave() {
                                 </div>
                               ) : (
                                 /* ── Biokimi: etiketa, gjinia, mosha+jedesi, operatori, vlerat ── */
-                                <div className="flex-1 space-y-1">
-                                  {/* Rreshti 1: etiketa + gjinia + mosha nga–deri + njesia */}
-                                  <div className="flex gap-1.5 items-center flex-wrap">
+                                <div className="flex-1 space-y-1.5">
+                                  {/* Rreshti 1: etiketa + gjinia (toggle) + mosha nga–deri + njesia (toggle) */}
+                                  <div className="flex gap-2 items-center flex-wrap">
                                     <input className="input text-xs w-24" value={vl.etiketa || ''}
                                       onChange={e => setKompVlera(i, vi, 'etiketa', e.target.value)} placeholder="Etiketa" />
-                                    {/* Gjinia */}
-                                    <select className="input text-xs w-20" value={vl.gjinia || 'Te dyja'}
-                                      onChange={e => setKompVlera(i, vi, 'gjinia', e.target.value)}>
-                                      <option value="Te dyja">Të dyja</option>
-                                      <option value="M">Mashkull</option>
-                                      <option value="F">Femër</option>
-                                    </select>
+
+                                    {/* Gjinia — butona toggle */}
+                                    <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+                                      {[['Te dyja','Të dyja'],['M','M'],['F','F']].map(([val2, lbl]) => (
+                                        <button key={val2} type="button"
+                                          onClick={() => setKompVlera(i, vi, 'gjinia', val2)}
+                                          className={`px-2 py-1 transition-colors ${
+                                            (vl.gjinia || 'Te dyja') === val2
+                                              ? 'bg-primary text-white font-semibold'
+                                              : 'bg-white text-gray-500 hover:bg-gray-50'
+                                          }`}>
+                                          {lbl}
+                                        </button>
+                                      ))}
+                                    </div>
+
                                     {/* Mosha nga → deri */}
+                                    <span className="text-gray-400 text-xs">Mosha:</span>
                                     <input type="number" min="0" className="input text-xs w-14" value={vl.moshaMin ?? ''}
                                       onChange={e => setKompVlera(i, vi, 'moshaMin', e.target.value)} placeholder="Nga" />
                                     <span className="text-gray-400 text-xs">–</span>
                                     <input type="number" min="0" className="input text-xs w-14" value={vl.moshaMax ?? ''}
                                       onChange={e => setKompVlera(i, vi, 'moshaMax', e.target.value)} placeholder="Deri" />
-                                    {/* Njesia e moshes — kritike per neonatale */}
-                                    <select className="input text-xs w-20" value={vl.moshaJedesi || 'Vjet'}
-                                      onChange={e => setKompVlera(i, vi, 'moshaJedesi', e.target.value)}
-                                      title="Njësia e moshës">
-                                      <option value="Dite">Ditë</option>
-                                      <option value="Muaj">Muaj</option>
-                                      <option value="Vjet">Vjet</option>
-                                    </select>
+
+                                    {/* Njesia e moshes — butona toggle (Ditë/Muaj/Vjet) */}
+                                    <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+                                      {[['Dite','Ditë'],['Muaj','Muaj'],['Vjet','Vjet']].map(([val2, lbl]) => (
+                                        <button key={val2} type="button"
+                                          onClick={() => setKompVlera(i, vi, 'moshaJedesi', val2)}
+                                          className={`px-2 py-1 transition-colors ${
+                                            (vl.moshaJedesi || 'Vjet') === val2
+                                              ? 'bg-blue-600 text-white font-semibold'
+                                              : 'bg-white text-gray-500 hover:bg-gray-50'
+                                          }`}>
+                                          {lbl}
+                                        </button>
+                                      ))}
+                                    </div>
                                   </div>
                                   {/* Rreshti 2: operatori + vlerat referente */}
                                   <div className="flex gap-1.5 items-center">
